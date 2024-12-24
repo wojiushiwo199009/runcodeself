@@ -1,0 +1,701 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <link href="../css/reset.css" rel="stylesheet">
+    <title>test gl-layers</title>
+    <style>
+        html,
+        body {
+            color: #222;
+            height: 100%;
+        }
+
+        #container {
+            height: 100%;
+        }
+
+        a {
+            color: #2fa1d6;
+        }
+
+        p {
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0 2em;
+        }
+
+        .tooltip {
+            position: absolute;
+            top: -999px;
+            left: -999px;
+            padding: 6px;
+            min-width: 200px;
+            border-left: 4px solid #0d8ce7;
+            color: #333;
+            background-color: #f0f0f0;
+            transition: all 0.2s ease-in-out;
+            word-break: break-all;
+            border-radius: 4px;
+            box-shadow: 0 0 8px rgba(8, 20, 26, 0.3);
+            z-index: 88;
+        }
+
+        .toolbar-group {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="tooltip tip"></div>
+    <div id="container" class="container"></div>
+    <div class="toolbar-group">
+        <button onclick="disaAnimate()">拆解</button>
+        <button onclick="mergeAnimate()">合并</button>
+        <button onclick="initHeatMap()">显示热力图</button>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+    <script src="https://z2586300277.github.io/three-cesium-examples/js/heatmap.js"></script>
+    <script src="../js/axios.min.js"></script>
+    <!-- <script src="../js/tween.umd.js"></script> -->
+
+
+    <script type="module">
+        import * as THREE from "three";
+        import Stats from "three/addons/libs/stats.module.js";
+        import { GUI } from "three/addons/libs/lil-gui.module.min.js";
+        import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        import { Tween, Easing } from 'https://unpkg.com/@tweenjs/tween.js@23.1.3/dist/tween.esm.js'
+        let container,
+            oldOffice, mixer3,
+            stats, clock, boxMesh,
+            mixer, datacenter,
+            actions,
+            activeAction,
+            previousAction;
+        let camera, scene, renderer, model, face, controls, tween, heatmap;
+        let modelMoveName = null;
+        let modelSelectName = null
+        let layer, tiemen = {};
+        let curve, curve1, che, uav;
+        let tooltipDom = document.getElementsByClassName('tooltip')[0]
+        // 图层管理
+        initDemo();
+        function initDemo() {
+            container = document.getElementById('container')
+
+            camera = new THREE.PerspectiveCamera(
+                45,
+                window.innerWidth / window.innerHeight,
+                0.25,
+                600
+            );
+            camera.position.set(-18.025190866867646, 10.815114520120584, 70.05038173373529);
+
+            window._camera = camera
+
+            scene = new THREE.Scene();
+            // 辅助轴
+            const axesHelper = new THREE.AxesHelper(20)
+            scene.add(axesHelper)
+
+            // scene.background = new THREE.Color(0xffffff);
+            // scene.fog = new THREE.Fog(0xe0e0e0, 20, 100);
+            const loaderbox = new THREE.CubeTextureLoader()
+            let path = '../static/image/skybox/daytime/'
+            let format = '.jpg'
+            const cubeTexture = loaderbox.load([
+                path + 'posX' + format,
+                path + 'negX' + format,
+                path + 'posY' + format,
+                path + 'negY' + format,
+                path + 'posZ' + format,
+                path + 'negZ' + format
+            ])
+            // 需要把色彩空间编码改一下，原因我上一篇说过的
+            cubeTexture.encoding = THREE.sRGBEncoding
+            scene.background = cubeTexture
+
+
+            console.log(scene, camera, 'scene');
+
+            clock = new THREE.Clock();
+            // lights
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+            hemiLight.position.set(0, 100, 0);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(0, 100, 10);
+            scene.add(dirLight);
+
+
+            // 创建一个 Catmull-Rom 样条曲线
+            const points = [
+                new THREE.Vector3(10, 0, 45),
+                new THREE.Vector3(10, 0, 25),
+                new THREE.Vector3(10, 4, 10),
+                new THREE.Vector3(-7, 0, 3),
+                new THREE.Vector3(-25, 0, 3),
+                new THREE.Vector3(-25, 0, 13),
+                new THREE.Vector3(-25, 0, 33),
+                // new THREE.Vector3(0, 0, 30),
+            ];
+
+            curve = new THREE.CatmullRomCurve3(points);
+            curve.curveType = "catmullrom";
+            curve.closed = true;//设置是否闭环
+            curve.tension = 0.8; //设置线的张力，0为无弧度折线
+
+            // 获取样条曲线上的点
+            const pointsOnCurve = curve.getPoints(50); // 获取50个点
+
+            // 创建几何体
+            const geometry = new THREE.BufferGeometry().setFromPoints(pointsOnCurve);
+
+            // 创建材质
+            const material = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0 });
+
+            // 创建线条
+            const line = new THREE.Line(geometry, material);
+
+            // 将线条添加到场景中
+            // scene.add(line);
+
+
+            // 创建一个沿路径的管状几何体
+            const tubeGeometry = new THREE.TubeGeometry(curve, 100, 0.3, 18, false);
+
+            // 加载纹理 (确保texture.jpg是实际存在的纹理图像)
+            const textureLoader = new THREE.TextureLoader();
+            const roughnessMap = textureLoader.load('../static/image/road.jpg');
+
+            const tubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, transparent: true, opacity: 0 });
+            const tubeMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+            // scene.add(tubeMesh);
+
+
+            let loader = new GLTFLoader();
+
+
+            // 加载无人机model
+            loader.load(
+                "../static/gltf/test/uav4/scene.gltf",
+                function (gltf) {
+                    console.log(gltf, 'gggg');
+                    // gltf.scene.scale.set(0.5, 0.5, 0.5)
+                    uav = gltf.scene
+                    scene.add(gltf.scene);
+                    // 动画
+                    mixer3 = new THREE.AnimationMixer(uav);
+                    mixer3.clipAction(gltf.animations[0]).play();
+                    const points = [
+                        new THREE.Vector3(10, 20, 45),
+                        new THREE.Vector3(10, 20, 25),
+                        new THREE.Vector3(10, 24, 10),
+                        new THREE.Vector3(-7, 20, 3),
+                        new THREE.Vector3(-25, 20, 3),
+                        new THREE.Vector3(-25, 20, 13),
+                        new THREE.Vector3(-25, 20, 33),
+                        // new THREE.Vector3(0, 0, 30),
+                    ];
+
+                    curve1 = new THREE.CatmullRomCurve3(points);
+                    curve1.curveType = "catmullrom";
+                    curve1.closed = true;//设置是否闭环
+                    curve1.tension = 0.8; //设置线的张力，0为无弧度折线
+
+                    // 获取样条曲线上的点
+                    const pointsOnCurve = curve1.getPoints(50); // 获取50个点
+
+                },
+                undefined,
+                function (e) {
+                    console.error(e);
+                }
+            );
+            // 加载机房
+            loader.load(
+                "../static/gltf/datacenter.glb",
+                function (gltf) {
+                    datacenter = gltf.scene;
+                    // datacenter.scale.set(0.5, 0.5, 0.5)
+                    datacenter.rotation.y = Math.PI / 2
+                    datacenter.position.set(-8, 8, 9)
+                    datacenter.visible = false
+                    scene.add(datacenter);
+
+                },
+                undefined,
+                function (e) {
+                    console.error(e);
+                }
+            );
+
+
+            // // 加载热力图相关方法开始
+            function checkNameIncludes(obj, str) {
+                if (obj.name.includes(str)) {
+                    return true
+                } else {
+                    return false
+                }
+            }
+            function checkIsRack(obj) {
+                return checkNameIncludes(obj, "rack");
+            }
+            function getObject3DWrapList() {
+                return Array.from(object3DWrapMap.values());
+            }
+            function getFullName(item) {
+                const list = []
+                let obj = item
+                while (obj !== undefined && obj !== null) {
+                    list.unshift(obj.name)
+                    obj = obj.parent
+                }
+                item.fullName = list.join('/')
+                return item
+            }
+            function getLen() {
+                const box3 = new THREE.Box3()
+                box3.setFromObject(scene)
+                const x = Math.abs(box3.max.x - box3.min.x)
+                const y = Math.abs(box3.max.z - box3.min.z)
+                return Math.max(x, y) * 2
+            }
+
+            let object3DWrapMap = new Map(), dataList = [];
+
+            window.initHeatMap = function () {
+                console.log(heatmap, 'heatmap');
+                if (!heatmap) {
+                    initHeatmap()
+                } else {
+                    heatmap.visible = !heatmap.visible
+                }
+            }
+
+
+            function initHeatmap() {
+                let rackList = []
+                scene.traverse((item) => {
+                    const objectWrap = getFullName(item)
+                    object3DWrapMap.set(item.uuid, objectWrap);
+                })
+                const objectWrapList = getObject3DWrapList()
+                console.log(object3DWrapMap, objectWrapList, 'object3DWrapMap');
+                objectWrapList.forEach((item) => {
+                    if (checkIsRack(item)) {
+                        rackList.push(item);
+                    }
+                });
+                console.log(rackList, 'rackList');
+                const width = 3072, height = 3072
+                var container1 = document.createElement("div");
+                container1.style.width = `${width}px`
+                container1.style.height = `${height}px`
+                container1.style.display = 'none'
+                container1.className = 'heatmap-container'
+                document.body.appendChild(container1)
+
+                var heatmapInstance = h337.create({
+                    container: container1
+                });
+
+                rackList.forEach((r) => {
+                    const position = new THREE.Vector3();
+                    position.setFromMatrixPosition(r.matrixWorld);
+                    dataList.push({
+                        value: Math.max(Math.random() * 30 + 2, 15),
+                        x: position.x,
+                        y: position.z,
+                    });
+                });
+                let max = 1, min = 0.1, len = getLen(), points = []
+
+                dataList.forEach((v) => {
+                    if (v.value > max) {
+                        // console.warn('max value increase to ', v.value)
+                        max = v.value
+                    }
+
+                    // bug: heatmap.js can show x:110,but can show 110.9384904
+                    const x = Number((((v.x / len) + 0.5) * width).toFixed(0))
+                    const y = Number((((v.y / len) + 0.5) * height).toFixed(0))
+                    // if position out of range ,there will draw nothing,
+
+                    if (x > len || y > len) {
+                        console.warn('heatmap point out of range.', len, x, y)
+                    }
+                    points.push({
+                        value: v.value,
+                        x,
+                        y
+                    })
+                })
+                heatmapInstance.setData({
+                    data: points,
+                    max: max,
+                    min: min
+                })
+                console.log(points, 'points');
+                heatmapInstance.repaint()
+
+                const texture1 = new THREE.CanvasTexture(heatmapInstance._renderer.canvas);
+                console.log(len, 'len');
+                const geometry1 = new THREE.PlaneGeometry(len, len);
+
+                const material1 = new THREE.MeshBasicMaterial({
+                    transparent: true,
+                    //   side: DoubleSide,
+                    depthTest: false,
+                    depthWrite: false,
+                    map: texture1
+                })
+                heatmap = new THREE.Mesh(geometry1, material1);
+                console.log(heatmap, 'meshs1');
+                heatmap.rotation.x = -Math.PI / 2;
+                heatmap.position.y = 8
+                scene.add(heatmap);
+            }
+            // 加载热力图相关方法结束
+
+
+
+
+            // 拆解动作
+            const MODEL_EQUIPMENT_POSITION_PARAMS_ENUM = {
+                ["zuo1"]: {
+                    COMPOSE: { x: -92.154892, y: -13.750265, z: 88 },
+                    DECOMPOSE: { x: -62.154892, y: 3.750265, z: 76.56481 },
+                },
+                ['zuo2']: {
+                    COMPOSE: { x: 63.1262856, y: 5.557498, z: -70 },
+                    DECOMPOSE: { x: 63.1262856, y: 15.557498, z: -70.95858 },
+                },
+                ['zuo3']: {
+                    COMPOSE: { x: 67.78515625, y: 12, z: -60 },
+                    DECOMPOSE: { x: 63.1262856, y: 15.557498, z: -70.95858 },
+                },
+                ['zuo4']: {
+                    COMPOSE: { x: -19.07958984375, y: 30.677734375, z: -60 },
+                    DECOMPOSE: { x: -46.614418, y: 33.2740059, z: -78.14579 },
+                },
+                ['zuo5']: {
+                    COMPOSE: { x: -137.78515625, y: 35, z: 60 },
+                    DECOMPOSE: { x: -62.154892, y: 3.750265, z: 76.56481 },
+                },
+                ['zuo6']: {
+                    COMPOSE: { x: 37.78515625, y: 80, z: -90 },
+                    DECOMPOSE: { x: -46.614418, y: 33.2740059, z: -78.14579 },
+                }
+            }
+            window.disaAnimate = function () {
+                datacenter.visible = true
+
+                model.children.forEach((child, index) => {
+                    console.log(child, model, 'child');
+                    const params = MODEL_EQUIPMENT_POSITION_PARAMS_ENUM[child.name]
+
+                    let TWIdx = new Tween(child.position)
+                        .to(params.COMPOSE, 2000)
+                        .easing(Easing.Quadratic.Out)
+                        .onUpdate((object) => {
+                            child.position.set(object.x, object.y, object.z)
+                            camera.position.set(25, 60, 8)
+                            camera.lookAt(0, 135, -140)
+                            // 模型中心点
+                            // controls.target.set(-8, 8, 9)
+                            controls.update();//内部会执行.lookAt()
+                            // scene.scale.set(0.5, 0.5, 0.5)
+                        })
+                        .onComplete(() => {
+
+
+                        })
+                        .start()
+                    function animate2(time) {
+                        TWIdx.update(time)
+                        requestAnimationFrame(animate2)
+                    }
+                    requestAnimationFrame(animate2)
+
+                })
+            }
+            window.mergeAnimate = function () {
+                model.children.forEach((child, index) => {
+                    console.log(child, model, 'child');
+                    const params = MODEL_EQUIPMENT_POSITION_PARAMS_ENUM[child.name]
+
+                    let TWIdx = new Tween(child.position)
+                        .to(params.DECOMPOSE, 2000)
+                        .easing(Easing.Quadratic.Out)
+                        .onUpdate((object) => {
+                            child.position.set(object.x, object.y, object.z)
+                            camera.position.set(-18.025190866867646, 10.815114520120584, 70.05038173373529);
+                            camera.lookAt(0, 0, 0)
+                            // 模型中心点
+                            controls.target.set(0, 0, 0)
+                            controls.update();
+
+                        }).onComplete(() => {
+                            datacenter.visible = false
+                            heatmap.visible = false
+                        })
+                        .start()
+                    function animate2(time) {
+                        TWIdx.update(time)
+                        requestAnimationFrame(animate2)
+                    }
+                    requestAnimationFrame(animate2)
+
+                })
+            }
+
+            // 加载车model
+            loader.load(
+                "../static/gltf/test/car13.gltf",
+                function (gltf) {
+                    console.log(gltf, scene, renderer, scene.parent);
+                    scene.add(gltf.scene);
+                    che = gltf.scene
+                    animate1()
+                },
+                undefined,
+                function (e) {
+                    console.error(e);
+                }
+            );
+
+
+            // 加载实验楼model
+            // 提供一个DracLoader实例来解码压缩网格数据
+            const dracoLoader = new DRACOLoader()
+            // 没有这两句会报错
+            dracoLoader.setDecoderPath('/static/draco/')
+            loader.setDRACOLoader(dracoLoader)
+            loader.load(
+                "../static/gltf/test/zuo.glb",
+                function (gltf) {
+                    console.log(gltf);
+                    model = gltf.scene;
+                    model.rotation.y = Math.PI
+                    model.scale.set(0.25, 0.25, 0.25)
+                    model.name = '办公大厅'
+                    model.children.forEach(item => {
+                        item.name = item.name.replace('zuo', '')
+                        if (item.name == 'ding') {
+                            item.name = 6
+                        }
+                        item.name--
+                    })
+                    model.children.sort((a, b) => a.name - b.name).forEach(v => {
+                        v.name = 'zuo' + (v.name + 1)
+                    })
+
+                    oldOffice = model.clone()
+
+                    scene.add(model);
+                },
+                undefined,
+                function (e) {
+                    console.error(e);
+                }
+            );
+
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setAnimationLoop(animate);
+            container.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.update();
+
+
+        }
+
+        function getBox() {
+            che.updateMatrixWorld()
+            const box = new THREE.Box3().setFromObject(che)
+            return box
+        }
+
+        let progress = 0; // 物体运动时在运动路径的初始位置，范围0~1
+        const velocity = 0.001; // 影响运动速率的一个值，范围0~1，需要和渲染频率结合计算才能得到真正的速率
+
+        // 物体无人机沿线移动方法
+        function moveOnCurve1() {
+            if (curve1 == null || uav == null) {
+            } else {
+                if (progress <= 1 - velocity) {
+                    let boxx = getBox()
+
+                    const point = curve1.getPointAt(progress); //获取样条曲线指定点坐标
+                    const pointBox = curve.getPointAt(progress + velocity); //获取样条曲线指定点坐标
+
+                    if (point && pointBox) {
+                        uav.position.set(point.x, point.y, point.z);
+                    }
+                    progress += velocity;
+                } else {
+                    progress = 0;
+                }
+            }
+        }
+
+        // 物体车沿线移动方法
+        function moveOnCurve() {
+            if (curve == null || che == null) {
+            } else {
+                if (progress <= 1 - velocity) {
+                    let boxx = getBox()
+
+                    const point = curve.getPointAt(progress); //获取样条曲线指定点坐标
+                    const pointBox = curve.getPointAt(progress + velocity); //获取样条曲线指定点坐标
+
+                    if (point && pointBox) {
+                        che.position.set(point.x, point.y, point.z);
+                        che.lookAt(pointBox.x, pointBox.y, pointBox.z);//因为这个模型加载进来默认面部是正对Z轴负方向的，所以直接lookAt会导致出现倒着跑的现象，这里用重新设置朝向的方法来解决。
+
+                        // 视觉跟随车子运动
+                        // camera.position.set(pointBox.x, pointBox.y + 2, pointBox.z + 15);
+                        // // 模型中心点
+                        // console.log(pointBox.x, pointBox.y, pointBox.z);
+                        // controls.target.set(pointBox.x, pointBox.y, pointBox.z);
+                        // controls.update();//内部会执行.lookAt()
+                    }
+                    progress += velocity;
+                } else {
+                    progress = 0;
+                }
+            }
+        }
+
+        function animate1() {
+            requestAnimationFrame(animate1)
+            const delta = clock.getDelta();
+            mixer3.update(delta);
+            moveOnCurve()
+            moveOnCurve1()
+
+        }
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        let modelSelect = ['zuo1', 'zuo2', 'zuo3', 'zuo4', 'zuo5', 'zuo6']
+        function onDocumentMouseMove(event) {
+            // 将浏览器的2D鼠标位置转换为3D空间的raycaster
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            // 使用鼠标位置和当前相机来更新射线投射器
+            raycaster.setFromCamera(mouse, camera);
+            // 计算物体和鼠标交点
+            const intersects = raycaster.intersectObjects(scene.children);
+            // console.log(event, intersects);
+
+            // 如果有交点，则高亮显示
+            if (intersects.length > 0) {
+                // 取第一个交点的物体（最接近的物体）
+                const intersect = intersects[0];
+                const floorInfo = intersect.object;
+                if (floorInfo.parent && floorInfo.parent.parent) {
+                    console.log(floorInfo.parent, floorInfo.parent.parent, 'par');
+                    modelSelect.forEach((item) => {
+                        if (item == floorInfo.parent.name) {
+                            modelMoveName = item
+                            if (modelSelectName == modelMoveName) return
+                            model.getObjectByName(item).traverse(function (child) {
+                                if (child.isMesh) {
+
+                                    let html = `name:${floorInfo.parent.parent.name}<br>id:${floorInfo.parent.name}<br>uuid:${intersect.object.uuid}`
+                                    tooltipDom.innerHTML = html
+                                    tooltipDom.style.display = 'block'
+                                    tooltipDom.style.left = (event.clientX + 10) + 'px'
+                                    tooltipDom.style.top = (event.clientY + 10) + 'px'
+
+                                    child.material = new THREE.MeshPhongMaterial({
+                                        color: 'green',
+                                        transparent: true,
+                                        opacity: 0.8,
+                                        emissive: child.material.color,
+                                        emissiveMap: child.material.map,
+                                        emissiveIntensity: 3
+                                    })
+                                }
+                            })
+                        } else {
+                            let oldmodel = oldOffice.getObjectByName(item)
+                            model.getObjectByName(item).traverse(function (child) {
+                                if (child.isMesh) {
+                                    child.material = oldmodel.getObjectByName(child.name).material
+                                }
+                            })
+                        }
+                    })
+                }
+                // 输出物体的名字、ID、指针等信息
+
+
+
+            } else {
+                // if (INTERSECTED) INTERSECTED.material.emissive.setHex(EMISSIVE);
+                tooltipDom.style.display = 'none'
+                if (oldOffice) {
+
+                    modelSelect.forEach((item) => {
+                        let oldmodel = oldOffice.getObjectByName(item)
+                        model.getObjectByName(item).traverse(function (child) {
+                            if (child.isMesh) {
+                                child.material = oldmodel.getObjectByName(child.name).material
+                            }
+                        })
+                    })
+                }
+            }
+        }
+
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
+        window.addEventListener('resize', onWindowResize)
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight
+            camera.updateProjectionMatrix()
+            renderer.setSize(window.innerWidth, window.innerHeight)
+        }
+        function animate() {
+            renderer.render(scene, camera);
+
+            // if (controls) {
+            //     controls.update();
+            // }
+
+        }
+
+    </script>
+</body>
+
+</html>

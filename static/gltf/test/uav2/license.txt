@@ -1,0 +1,11 @@
+Model Information:
+* title:	Drone (UAV For 3D Printing)
+* source:	https://sketchfab.com/3d-models/drone-uav-for-3d-printing-5a023c2f413445cbb255b6885b3998c3
+* author:	T-FLEX CAD ST (Free) (https://sketchfab.com/tflexcad)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Drone (UAV For 3D Printing)" (https://sketchfab.com/3d-models/drone-uav-for-3d-printing-5a023c2f413445cbb255b6885b3998c3) by T-FLEX CAD ST (Free) (https://sketchfab.com/tflexcad) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

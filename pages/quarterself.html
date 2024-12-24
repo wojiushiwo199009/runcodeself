@@ -1,0 +1,351 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+  <link href="../css/reset.css" rel="stylesheet">
+  <title>test gl-layers</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+    }
+
+    .container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .mouse_hover {
+      cursor: pointer !important;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 2em;
+      left: 2em;
+      z-index: 999;
+    }
+
+    .toolbar-group {
+      margin: 0 .2em;
+      display: inline-block;
+    }
+
+    .building-mark {
+      padding: 0.7em 0;
+      width: 106px;
+      height: 38px;
+      box-sizing: border-box;
+      background: transparent url('../static/image/map/marker-bg1.png') center center no-repeat;
+      background-size: 100% 100%;
+      text-align: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+
+    }
+
+    .tooltip {
+      position: absolute;
+      top: -999px;
+      left: -999px;
+      padding: 6px;
+      min-width: 200px;
+      border-left: 4px solid #0d8ce7;
+      color: #333;
+      background-color: #f0f0f0;
+      transition: all 0.2s ease-in-out;
+      word-break: break-all;
+      border-radius: 4px;
+      box-shadow: 0 0 8px rgba(8, 20, 26, 0.3);
+      z-index: 88;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="tooltip tip"></div>
+  <div id="container" class="container"></div>
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <button onclick="toggleLayer('tilesLayer', 'show')">显示3D瓦片图层</button>
+      <button onclick="toggleLayer('tilesLayer', 'hide')">隐藏3D瓦片图层</button>
+    </div>
+    <div class="toolbar-group">
+      <button onclick="toggleLayer('monoLayer', 'show')">显示建筑单体化</button>
+      <button onclick="toggleLayer('monoLayer', 'hide')">隐藏建筑单体化</button>
+    </div>
+    <div class="toolbar-group">
+      <button onclick="focusScene()">聚焦主场景</button>
+      <!--    <button @click="toggleLayer('buildingLayer', 'show')">显示建筑白模</button>-->
+      <!--    <button @click="toggleLayer('buildingLayer', 'hide')">隐藏建筑白模</button>-->
+    </div>
+  </div>
+
+  <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/", 
+          "3d-tiles-renderer": "../js/3dTilesRenderer.js"
+        }
+      }
+    </script>
+  <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+  <script src="../js/3dTilesRenderer.js"></script>
+  <script src="../js/axios.min.js"></script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { initMap, getMap } from '../js/mainMap2.js'
+    import GLlayer from '../js/gl-layers/index.js'
+    import { fetchData } from "../js/utils/mock.js";
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+    const {
+      LayerManager,
+      TilesLayer,
+      MonoBuildingLayer,
+    } = GLlayer
+
+    let tooltipDom = document.getElementsByClassName('tooltip')[0]
+
+    let layer;
+    // 帧率监视
+    let stateMonitor;
+    // 图层管理
+    const layerManger = new LayerManager()
+    const container = document.querySelector('#container')
+    const tip = document.querySelector('#tip')
+    let map, customCoords, objPosition;
+    let gllayer, model, camera, renderer, scene;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let INTERSECTED = null;
+    let EMISSIVE = null;
+
+    const mapConf = {
+      name: '虚拟小区',
+      id: 'quarter',
+      'center': [113.536062, 22.800635],
+      'zoom': 16.89,
+      'pitch': '64.818181',
+      'rotation': 17.49999999,
+      // titlesRul: '../static/tiles/small-town/tileset.json',
+      modelData: []
+    }
+    const loader = new GLTFLoader();
+    main()
+
+
+    function onDocumentMouseMove(event) {
+      // 将浏览器的2D鼠标位置转换为3D空间的raycaster
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+      // 使用鼠标位置和当前相机来更新射线投射器
+      raycaster.setFromCamera(mouse, camera);
+      // 计算物体和鼠标交点
+      const intersects = raycaster.intersectObjects(scene.children);
+      console.log(event, intersects);
+
+      // 如果有交点，则高亮显示
+      if (intersects.length > 0) {
+        // 取第一个交点的物体（最接近的物体）
+        const intersect = intersects[0];
+        const floorInfo = intersect.object.userData;
+        // 输出物体的名字、ID、指针等信息
+        console.log(intersect.object.name);
+        console.log(intersect.object.id);
+        console.log(intersect.object.uuid);
+
+        let html = `name:${intersect.object.name}<br>id:${intersect.object.id}<br>uuid:${intersect.object.uuid}`
+        tooltipDom.innerHTML = html
+        tooltipDom.style.display = 'block'
+        tooltipDom.style.left = (event.clientX + 10) + 'px'
+        tooltipDom.style.top = (event.clientY + 10) + 'px'
+        getData()
+        if (INTERSECTED != intersects[0].object) {
+          if (INTERSECTED) INTERSECTED.material.emissive.setHex(EMISSIVE);
+          INTERSECTED = intersects[0].object;
+          EMISSIVE = INTERSECTED.material.emissive.getHex();
+          INTERSECTED.material.emissive.setHex(0xffff00); // 设置高亮颜色为黄色
+        }
+      } else {
+        if (INTERSECTED) INTERSECTED.material.emissive.setHex(EMISSIVE);
+        INTERSECTED = null;
+        tooltipDom.style.display = 'none'
+      }
+    }
+
+    // 监听鼠标移动事件
+    document.addEventListener('mousemove', onDocumentMouseMove, false);
+
+    async function getData(params) {
+      const data = await fetchData("../static/mock/monobuildingexample1.geojson");
+
+    }
+
+
+    async function main() {
+      await init()
+      await initLayer()
+      initMarkerLayer()
+      map.add(gllayer)
+    }
+
+    async function init() {
+      map = await initMap(Object.assign({
+        viewMode: '3D',
+        dom: container,
+        showBuildingBlock: true,
+        'center': [113.536062, 22.800635],
+        zoom: 13.5,
+        mapStyle: 'amap://styles/light',
+        skyColor: 'grba(140,176,222,1)'
+      }, mapConf))
+    }
+
+    async function initLayer(params) {
+      console.log(AMap, 'AMap');
+      customCoords = map.customCoords;
+
+      objPosition = [113.536062, 22.800635];
+
+      //创建GL图层
+      gllayer = new AMap.GLCustomLayer({
+        zIndex: 10,
+        init: gl => {
+          // 创建正交相机
+          camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 100, 1 << 30);
+          renderer = new THREE.WebGLRenderer({
+            context: gl  //地图的gl上下文
+            // alpha:true,
+            // antialias:true,
+            // canvas: gl.canvas
+          })
+          // 清空画布，这里必现设置为false,否则地图底层无法显示
+          renderer.autoClear = false;
+          scene = new THREE.Scene();
+          var aLight = new THREE.AmbientLight(0xffffff, 0.3)
+          var dLight = new THREE.DirectionalLight(0xffffff, 1)
+          dLight.position.set(1000, -100, 900)
+          scene.add(dLight)
+          scene.add(aLight)
+          ininGltf()
+
+        },
+        render: () => {
+          // 这里必须执行，重新设置three的gl上下文状态
+          renderer.resetState()
+          customCoords.setCenter([113.536062, 22.800635])
+          var { near, far, fov, up, lookAt, position } = customCoords.getCameraParams()
+          camera.near = near
+          camera.far = far
+          camera.fov = fov
+          camera.position.set(...position)
+          camera.up.set(...up)
+          camera.lookAt(...lookAt)
+          camera.updateProjectionMatrix();
+          renderer.render(scene, camera)
+          renderer.resetState()
+        }
+      })
+    }
+
+    function ininGltf(params) {
+      loader.load(
+        "../static/gltf/test/school_building.glb",
+        function (gltf) {
+          model = gltf.scene;
+          model.scale.set(50, 50, 50)
+          setPosition(objPosition)
+          setRotation({ x: 90, y: -22, z: 0 });
+          scene.add(model);
+        },
+        undefined,
+        function (e) {
+          console.error(e);
+        }
+      );
+
+    }
+
+    function initMarkerLayer() {
+
+      const map = getMap()
+
+      const markerData = [{
+        name: '商业办公楼A',
+        position: [113.535999, 22.798698, 20],
+      }, {
+        name: '商业办公楼B',
+        position: [113.536535, 22.799634, 15]
+      }]
+
+      markerData.forEach((item) => {
+        const { name, position } = item
+        var marker = new AMap.Marker({
+          position,
+          content: `<div class="building-mark">${name}</div>`,
+          anchor: 'bottom-center',
+          offset: [0, -60],
+          zooms: [18, 20],
+          map
+        });
+      })
+
+
+    }
+    function setRotation(rotation) {
+
+      var x = (Math.PI / 180) * (rotation.x || 0);
+
+      var y = (Math.PI / 180) * (rotation.y || 0);
+
+      var z = (Math.PI / 180) * (rotation.z || 0);
+
+      model.rotation.set(x, y, z);
+
+    }
+    function setPosition(lnglat) {
+
+      // 对模型的经纬度进行转换
+
+      var position = customCoords.lngLatsToCoords([lnglat])[0];
+      console.log(position, model);
+      model.position.setX(position[0] + 50);
+
+      model.position.setY(position[1] - 150);
+
+    }
+    // 聚焦时地图状态
+    const focusConf = {
+      "center": [
+        113.536184,
+        22.80024
+      ],
+      "zoom": 18.96,
+      "pitch": 72.81818181818178,
+      "rotation": 3.4000000000000012,
+      "duration": 1000
+    }
+    window.focusScene = function () {
+      const map = getMap()
+      const { zoom, center, duration, pitch, rotation } = focusConf
+
+      map.setZoomAndCenter(zoom, center, false, duration)
+      map.setPitch(pitch, false, duration)
+      map.setRotation(rotation, false, duration)
+    }
+
+  </script>
+</body>
+
+</html>

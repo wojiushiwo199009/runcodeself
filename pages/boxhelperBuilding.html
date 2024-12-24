@@ -1,0 +1,472 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <link href="../css/reset.css" rel="stylesheet">
+    <title>test gl-layers</title>
+    <style>
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+        }
+
+        .container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .mouse_hover {
+            cursor: pointer !important;
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 2em;
+            left: 2em;
+            z-index: 999;
+        }
+
+        .toolbar-group {
+            margin: 0 .2em;
+            display: inline-block;
+        }
+
+        .building-mark {
+            padding: 0.7em 0;
+            width: 106px;
+            height: 38px;
+            box-sizing: border-box;
+            background: transparent url('../static/image/map/marker-bg1.png') center center no-repeat;
+            background-size: 100% 100%;
+            text-align: center;
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+
+        }
+
+        .tooltip {
+            position: absolute;
+            top: -999px;
+            left: -999px;
+            padding: 6px;
+            min-width: 200px;
+            border-left: 4px solid #0d8ce7;
+            color: #333;
+            background-color: #f0f0f0;
+            transition: all 0.2s ease-in-out;
+            word-break: break-all;
+            border-radius: 4px;
+            box-shadow: 0 0 8px rgba(8, 20, 26, 0.3);
+            z-index: 88;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="tooltip tip"></div>
+    <div id="container" class="container"></div>
+    <div class="toolbar">
+        <div class="toolbar-group">
+            <button onclick="toggleLayer('tilesLayer', 'show')">显示3D瓦片图层</button>
+            <button onclick="toggleLayer('tilesLayer', 'hide')">隐藏3D瓦片图层</button>
+        </div>
+        <div class="toolbar-group">
+            <button onclick="toggleLayer('monoLayer', 'show')">显示建筑单体化</button>
+            <button onclick="toggleLayer('monoLayer', 'hide')">隐藏建筑单体化</button>
+        </div>
+        <div class="toolbar-group">
+            <button onclick="focusScene()">聚焦主场景</button>
+            <!--    <button @click="toggleLayer('buildingLayer', 'show')">显示建筑白模</button>-->
+            <!--    <button @click="toggleLayer('buildingLayer', 'hide')">隐藏建筑白模</button>-->
+        </div>
+        <div class="toolbar-group">
+            <button onclick="toggleLight()">关灯/开灯</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/", 
+          "3d-tiles-renderer": "../js/3dTilesRenderer.js"
+        }
+      }
+    </script>
+    <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+    <script src="../js/3dTilesRenderer.js"></script>
+    <script src="../js/axios.min.js"></script>
+
+    <script type="module">
+        import * as THREE from "three";
+        import { initMap, getMap } from '../js/mainMap2.js'
+        import GLlayer from '../js/gl-layers/index.js'
+        import { TilesFadePlugin } from '../js/TilesFadePlugin.js'
+        import { fetchData } from "../js/utils/mock.js";
+
+        import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+        import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+        import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+        import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        const { TilesRenderer } = window._3dTilesRenderer; //加载3dTilesRenderer.js
+        const initParams = {
+            threshold: 100,
+            strength: 100,
+            radius: 100,
+            exposure: 1,
+        };
+
+        console.log(window, 'win');
+        const {
+            LayerManager,
+            TilesLayer,
+            MonoBuildingLayer,
+        } = GLlayer
+        let tilesRenderer
+        let tooltipDom = document.getElementsByClassName('tooltip')[0]
+
+        let layer, controls, composer, light, pointLight1, pointLight2, pointLight3, pointLight4;
+        // 帧率监视
+        let cube;
+        // 图层管理
+        const container = document.querySelector('#container')
+        const tip = document.querySelector('#tip')
+        let map;
+        let model, camera, renderer, scene, boxHelper;
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let INTERSECTED = null;
+        let EMISSIVE = null;
+        const mapConf = {
+            name: '虚拟小区',
+            id: 'quarter',
+            'center': [113.536062, 22.800635],
+            'zoom': 16.89,
+            'pitch': '64.818181',
+            'rotation': 17.49999999,
+            // titlesRul: '../static/tiles/small-town/tileset.json',
+            modelData: []
+        }
+
+        main()
+        // 获取scene里面所有的物体
+        function getAllModels(parent) {
+            const models = [];
+            if (parent.isMesh) {
+                models.push(parent);
+            }
+            if (parent.children.length > 0) {
+                for (let i = 0; i < parent.children.length; i++) {
+                    models.push(...getAllModels(parent.children[i]));
+                }
+            }
+            return models;
+        }
+
+        // 使用方法：
+        // 假设你的场景变量名为scene
+
+        async function main() {
+            await initBuild()
+
+            // map.add(gllayer)
+        }
+
+        async function init() {
+            map = await initMap(Object.assign({
+                viewMode: '3D',
+                dom: container,
+                showBuildingBlock: true,
+                'center': [113.536062, 22.800635],
+                zoom: 13.5,
+                mapStyle: 'amap://styles/light',
+                skyColor: 'grba(140,176,222,1)'
+            }, mapConf))
+        }
+
+        async function initBuild(params) {
+
+            // camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 100, 1 << 30);
+            camera = new THREE.PerspectiveCamera(
+                60,
+                window.innerWidth / window.innerHeight,
+                20,
+                500
+            );
+            camera.position.set(0, 100, 100);
+
+            scene = new THREE.Scene();
+            camera.lookAt(scene.position);
+
+            scene.background = new THREE.Color(0x333333);
+            // 3D场景渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // 开启阴影
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            // 添加了方向平行光
+            const hemiLight = new THREE.DirectionalLight(0xffffff, 10);
+            // //点光源
+            const pointLight = new THREE.PointLight(0xffffff, 100);
+            hemiLight.position.set(200, 200, 200)
+            // scene.add(hemiLight);
+            pointLight.position.set(100, 0, 100)
+            scene.add(pointLight)
+            // 环境光
+            light = new THREE.AmbientLight(0xffffff, 1); // soft white light
+            scene.add(light);
+
+            // 创建几何体
+            const geometry = new THREE.BoxGeometry();
+            // 创建材质
+            const material = new THREE.MeshStandardMaterial();
+            // 创建立方体网格
+            cube = new THREE.Mesh(geometry, material);
+            cube.scale.set(5, 5, 5)
+            cube.position.set(10, 0, 0)
+
+
+            const plane = new THREE.Mesh(
+                new THREE.PlaneGeometry(10, 10),
+                new THREE.MeshStandardMaterial()
+            )
+            plane.rotation.z = -Math.PI / 2
+            plane.position.set(0, 10, 0)
+            scene.add(plane)
+
+            const geometry1 = new THREE.BufferGeometry();
+            // 创建一个简单的矩形. 在这里我们左上和右下顶点被复制了两次。
+            // 因为在两个三角面片里，这两个顶点都需要被用到。
+            const vertices = new Float32Array([
+                -1.0, -1.0, 1.0,
+                1.0, -1.0, 1.0,
+                1.0, 1.0, 1.0,
+
+                1.0, 1.0, 1.0,
+                -1.0, 1.0, 1.0,
+                -1.0, -1.0, 1.0
+            ]);
+
+            // itemSize = 3 因为每个顶点都是一个三元组。
+            geometry1.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            const material1 = new THREE.MeshPhongMaterial({
+                color: 0x0000ff,
+                specular: 0x4488ee,
+                shininess: 12
+            });
+            const mesh = new THREE.Mesh(geometry1, material1);
+            mesh.position.set(0, 0, 10)
+            scene.add(cube);
+            scene.add(mesh);
+            // scene.add(dirLight);
+
+            pointLight1 = new THREE.PointLight(0xff0000, 100);
+            pointLight1.position.set(30, 50, 5)
+            scene.add(pointLight1)
+
+            pointLight2 = new THREE.PointLight(0xff0000, 100);
+            pointLight2.position.set(50, 30, 5)
+
+            scene.add(pointLight2)
+
+            pointLight3 = new THREE.PointLight(0xff0000, 100);
+            pointLight3.position.set(40, 40, 15)
+
+            scene.add(pointLight3)
+
+            pointLight4 = new THREE.PointLight(0xff00ff, 100);
+            pointLight4.position.set(45, 50, 5)
+
+            scene.add(pointLight4)
+
+
+            boxHelper = new THREE.BoxHelper(new THREE.Object3D(), new THREE.Color(0x00ffff))
+            scene.add(boxHelper)
+
+
+            // b3dm文件加载器
+            const dracoLoader = new DRACOLoader();
+            //  加载json文件
+            tilesRenderer = new TilesRenderer('../static/tiles/small-town/tileset.json');
+            tilesRenderer.setCamera(camera);
+            tilesRenderer.setResolutionFromRenderer(camera, renderer);
+            console.log(tilesRenderer, cube, 'tilesRenderer');
+
+            tilesRenderer.group.scale.set(0.5, 0.5, 0.5)
+            tilesRenderer.group.position.set(0, 0, 0)
+            // tilesRenderer.group.rotation.set(100, 100, 100)
+            tilesRenderer.group.rotation.x = -90
+            // tilesRenderer.group.rotation.z = 90
+            // scene.add(tilesRenderer.group);
+
+
+            const loader = new GLTFLoader();
+            loader.load(
+                "../static/gltf/datacenter.glb",
+                function (gltf) {
+                    model = gltf.scene;
+                    model.scale.set(10, 10, 10)
+                    scene.add(model);
+                },
+                undefined,
+                function (e) {
+                    console.error(e);
+                }
+            );
+
+
+
+            // 创建了一个RenderPass对象，用于将场景渲染到纹理上。
+            const renderScene = new RenderPass(scene, camera);
+
+            // 创建了一个UnrealBloomPass对象，用于实现辉光效果。≈
+            const bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                15,
+                4,
+                8.5
+            );
+            console.log(bloomPass, 'bloomPass');
+            // 设置发光参数,阈值、强度和半径。
+            bloomPass.threshold = initParams.threshold;
+            bloomPass.strength = initParams.strength;
+            bloomPass.radius = initParams.radius;
+
+            // 创建了一个OutputPass对象，用于将最终渲染结果输出到屏幕上。
+            const outputPass = new OutputPass();
+
+            // 创建了一个EffectComposer对象，并将RenderPass、UnrealBloomPass和OutputPass添加到渲染通道中。
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+            composer.addPass(outputPass);
+
+
+            renderer.render(scene, camera);
+            render()
+            controls = new OrbitControls(camera, renderer.domElement);
+
+
+        }
+
+        function render() {
+            // 加载tile.json需要这两句，必写！！！
+            camera.updateMatrixWorld();
+            tilesRenderer.update();
+
+
+            composer.render()
+            renderer.render(scene, camera);//执行渲染操作
+
+            // cube.rotateY(0.01);//每次绕y轴旋转0.01弧度
+            // cube.rotateX(0.01);//每次绕y轴旋转0.01弧度
+            requestAnimationFrame(render);//请求再次执行渲染函数render
+        }
+
+        window.toggleLight = function () {
+            pointLight1.visible = !pointLight1.visible
+            pointLight2.visible = !pointLight2.visible
+            pointLight3.visible = !pointLight3.visible
+            pointLight4.visible = !pointLight4.visible
+            console.log(light.intensity, scene.background, 'ba');
+            light.intensity = light.intensity == 6 ? 1 : 6
+            scene.background = scene.background.r == 1 ? new THREE.Color(0x333333) : new THREE.Color(0xffffff)
+
+        }
+
+        function findParent(object3d, callback) {
+            let parent = object3d;
+            while (!callback(parent)) {
+                parent = parent.parent;
+                if (parent === null) {
+                    return null;
+                }
+            }
+            return parent;
+        }
+
+        function checkNameIncludes(obj, str) {
+            if (obj.name.includes(str) || obj.name.includes('chair')) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        function checkIsRack(obj) {
+            return checkNameIncludes(obj, 'rack');
+        }
+
+        function onDocumentMouseMove(event) {
+            // 将浏览器的2D鼠标位置转换为3D空间的raycaster
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            // 使用鼠标位置和当前相机来更新射线投射器
+            raycaster.setFromCamera(mouse, camera);
+            // 计算物体和鼠标交点
+            const intersects = raycaster.intersectObjects(scene.children);
+            console.log(event, intersects);
+            let rack;
+            // // 如果有交点，则高亮显示
+            if (intersects.length > 0) {
+                //   // 取第一个交点的物体（最接近的物体）
+                const intersect = intersects[0];
+                const floorInfo = intersect.object.userData;
+                // 输出物体的名字、ID、指针等信息
+                console.log(intersect.object);
+                rack = findParent(intersect.object, checkIsRack);
+                console.log(rack, boxHelper, 'rack');
+                //   let html = `name:${intersect.object.name}<br>id:${intersect.object.id}<br>uuid:${intersect.object.uuid}`
+                //   tooltipDom.innerHTML = html
+                //   tooltipDom.style.display = 'block'
+                //   tooltipDom.style.left = (event.clientX + 10) + 'px'
+                //   tooltipDom.style.top = (event.clientY + 10) + 'px'
+                //   if (INTERSECTED != intersects[0].object) {
+                //     if (INTERSECTED) INTERSECTED.material.emissive.setHex(EMISSIVE);
+                //     INTERSECTED = intersects[0].object;
+                //     EMISSIVE = INTERSECTED.material.emissive.getHex();
+                //     INTERSECTED.material.emissive.setHex(0xffff00); // 设置高亮颜色为黄色
+                //   }
+                if (rack) {
+
+                    boxHelper.setFromObject(rack);
+                    let html = `name:${rack.name}<br>id:${rack.id}<br>uuid:${rack.uuid}`
+                    tooltipDom.innerHTML = html
+                    tooltipDom.style.display = 'block'
+                    tooltipDom.style.left = (event.clientX + 10) + 'px'
+                    tooltipDom.style.top = (event.clientY + 10) + 'px'
+                }
+                boxHelper.visible = true
+            }
+            else {
+                //   if (INTERSECTED) INTERSECTED.material.emissive.setHex(EMISSIVE);
+                //   INTERSECTED = null;
+                tooltipDom.style.display = 'none'
+                boxHelper.visible = false
+            }
+
+
+
+        }
+        // 监听鼠标移动事件
+        document.addEventListener('mousemove', onDocumentMouseMove, false);
+
+    </script>
+</body>
+
+</html>

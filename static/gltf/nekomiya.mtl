@@ -1,0 +1,95 @@
+# Blender 4.2.3 LTS MTL File: 'None'
+# www.blender.org
+
+newmtl Material.007
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Tsubaki_Body_Db.png
+
+newmtl Material.008
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/tsubaki_face_d.png
+
+newmtl Material.009
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Tsubaki_Body_Db.png
+
+newmtl Material.010
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Tsubaki_Body_Db.png
+
+newmtl Material.011
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Tsubaki_Body_Db.png
+
+newmtl Material.012
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Tsubaki_Body_Db.png
+
+newmtl Tsubaki_Body_stuff.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.312297 0.312297 0.312297
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/Tsubaki_Body_D.png
+map_d C:/Tsubaki_Body_D.png
+map_Bump -bm 1.000000 C:/Tsubaki_Body_N.png
+
+newmtl Tsubaki_Hair_D.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.031250 0.031250 0.031250
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Tsubaki_Hair_D.png
+map_Bump -bm 1.000000 C:/Tsubaki_Hair_n.png
+
+newmtl screen.001
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.015625 0.015625 0.015625
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/poop.png
+map_d C:/poop.png
+map_Bump -bm 1.000000 C:/bumpboost.png

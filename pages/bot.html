@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width" />
+  <link href="../css/reset.css" rel="stylesheet" />
+  <title>test gl-layers</title>
+  <style>
+    body {
+      color: #222;
+    }
+
+    a {
+      color: #2fa1d6;
+    }
+
+    p {
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 0 2em;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container" class="container"></div>
+
+  <div class="toolbar">
+    <!-- <div class="toolbar-group">
+      <button onclick="toggleLayer('tilesLayer', 'show')">显示3D瓦片图层</button>
+      <button onclick="toggleLayer('tilesLayer', 'hide')">隐藏3D瓦片图层</button>
+    </div> -->
+  </div>
+
+  <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+  <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+  <script src="../js/axios.min.js"></script>
+
+  <script type="module">
+    import * as THREE from "three";
+
+    import Stats from "three/addons/libs/stats.module.js";
+
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+    import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    let container,
+      cube,
+      stats,
+      clock,
+      p1,
+      p3,
+      mixer,
+      mixer1,
+      mixer2, mixer3;
+    let camera, scene, renderer, model, face, controls;
+
+    init();
+    async function init() {
+      container = document.createElement("div");
+      document.body.appendChild(container);
+
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.25,
+        100
+      );
+      camera.position.set(-18.025190866867646, 10.815114520120584, 36.05038173373529);
+      camera.lookAt(200, 200, 0);
+
+      window._camera = camera
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff);
+
+      // 3D场景渲染器
+      renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setClearColor(0xffffff, 1);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setAnimationLoop(animate1);
+      container.appendChild(renderer.domElement);
+      // 动画根据clock帧进行
+      clock = new THREE.Clock();
+      // lights
+      // 半球光
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+      hemiLight.position.set(0, 100, 0);
+      scene.add(hemiLight);
+      // // 直射光，可以理解为手电筒
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(0, 100, 10);
+      scene.add(dirLight);
+
+      // background
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(2000, 2000), //几何平面
+        new THREE.MeshPhongMaterial({ color: 0xffffff, depthWrite: false })  //金属，塑料材质的几何体类型
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      scene.add(mesh);
+
+
+      // 创建几何体
+      const geometry = new THREE.BoxGeometry();
+      // 创建材质
+      const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+      // 创建立方体网格
+      cube = new THREE.Mesh(geometry, material);
+
+      cube.position.set(-10, 0, 0)
+      scene.add(cube);
+      // model
+      const loader1 = new GLTFLoader();
+      p3 = await loadGLTF(loader1, "../static/gltf/Parrot.glb",);
+      console.log(p3, 'load');
+      const size1 = 0.1
+
+      p3.scene.scale.set(size1, size1, size1);
+      p3.scene.position.set(0, 0, 0)
+      const loader = new FBXLoader();
+
+      p1 = await loadFile(loader, "../static/gltf/xiaoz.fbx");
+      console.log(p1, 'p1');
+      const size = 0.05
+      p1.scale.set(size, size, size);
+
+      const index = p1.children.findIndex(v => v.name == "Light")
+      p1.children.splice(index, 1)
+      // 调整下材质的瑕疵
+      p1.children.forEach(element => {
+        const { material, name } = element
+        if (['Retopo_ball', 'Retopo_face'].includes(name)) {
+          const material = element.material
+          material.transparent = false
+        }
+      });
+      p1.position.set(20, 0, 0)
+
+      controls = new OrbitControls(camera, renderer.domElement);
+
+      window.addEventListener("resize", onWindowResize);
+
+      // stats
+      stats = new Stats();
+      container.appendChild(stats.dom);
+      // 动画
+      mixer1 = new THREE.AnimationMixer(p3.scene);
+      mixer1.clipAction(p3.animations[0]).play();
+
+      // 动画
+      mixer2 = new THREE.AnimationMixer(p1);
+      mixer2.clipAction(p1.animations[4]).play();
+
+
+      let p4 = await loadGLTF(loader1, "../static/gltf/RobotExpressive.glb",);
+      const model = p4.scene;
+      model.position.set(1, 1, 10);
+      model.scale.set(0.5, 0.5, 0.5);
+      scene.add(model);
+
+      // 动画
+      mixer3 = new THREE.AnimationMixer(p4.scene);
+      mixer3.clipAction(p4.animations[0]).play();
+
+      animate1();
+      animate2()
+    }
+
+    // 让3d动起来
+    const clock1 = new THREE.Clock();
+    function animate2() {
+      renderer.render(scene, camera);
+      controls.update();
+
+      const delta = clock1.getDelta();
+      mixer1.update(delta);
+      mixer2.update(delta);
+      mixer3.update(delta);
+      requestAnimationFrame(animate2)
+    }
+
+
+    function loadFile(md, url) {
+      return new Promise((resolve, reject) => {
+        md.load(
+          url,
+          gltf => {
+            console.log(gltf, 'lll');
+            scene.add(gltf);
+            resolve(gltf);
+          },
+          undefined,
+          function (error) {
+            console.error(error);
+          }
+        );
+      });
+    }
+    function loadGLTF(md, url) {
+      return new Promise((resolve, reject) => {
+        md.load(
+          url,
+          gltf => {
+            console.log(gltf, 'gltf');
+            scene.add(gltf.scene);
+            resolve(gltf);
+          },
+          undefined,
+          function (error) {
+            console.error(error);
+          }
+        );
+      });
+    }
+
+    // 动画循环
+    function animate1() {
+      const elapsedTime = clock.getElapsedTime()
+      // 浏览器API
+      requestAnimationFrame(animate1);
+      p1.position.x = Math.cos(elapsedTime * 0.6) * 5 + 6
+      p1.position.z = Math.sin(elapsedTime * 0.6) * 5
+      p1.rotation.y += 0.06;
+      p3.scene.rotation.y += 0.06;
+      cube.rotation.x += 0.5;
+      controls.update() // 更新轨道控制器  
+      stats.update() // 更新监控帧数
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+  </script>
+</body>
+
+</html>

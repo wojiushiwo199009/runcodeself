@@ -1,0 +1,173 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+  <link href="../css/reset.css" rel="stylesheet">
+  <title>test gl-layers</title>
+  <style>
+    body {
+      color: #222;
+    }
+
+    a {
+      color: #2fa1d6;
+    }
+
+    p {
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 0 2em;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container" class="container"></div>
+  <div class="toolbar">
+    <!-- <div class="toolbar-group">
+      <button onclick="toggleLayer('tilesLayer', 'show')">显示3D瓦片图层</button>
+      <button onclick="toggleLayer('tilesLayer', 'hide')">隐藏3D瓦片图层</button>
+    </div> -->
+  </div>
+
+  <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+  <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+  <script src="../js/axios.min.js"></script>
+
+  <script type="module">
+    import * as THREE from "three";
+
+    import Stats from "three/addons/libs/stats.module.js";
+    import { GUI } from "three/addons/libs/lil-gui.module.min.js";
+
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+    import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    let container,
+      stats,
+      clock,
+      gui,
+      mixer,
+      actions,
+      activeAction,
+      previousAction;
+    let camera, scene, renderer, model, face, controls;
+
+    const api = { state: "root|idle" };
+
+
+    let layer;
+    // 帧率监视
+    let stateMonitor;
+
+    // 图层管理
+    initDemo();
+    function initDemo() {
+      container = document.createElement("div");
+      document.body.appendChild(container);
+
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.25,
+        100
+      );
+      camera.position.set(-18.025190866867646, 10.815114520120584, 36.05038173373529);
+      camera.lookAt(0, 2, 0);
+
+      window._camera = camera
+
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff);
+      // scene.fog = new THREE.Fog(0xe0e0e0, 20, 100);
+
+      clock = new THREE.Clock();
+
+      // lights
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+      hemiLight.position.set(0, 100, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+      dirLight.position.set(0, 100, 10);
+      scene.add(dirLight);
+
+      // ground
+
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(2000, 2000),
+        new THREE.MeshPhongMaterial({ color: 0xffffff, depthWrite: false })
+      );
+      mesh.rotation.x = -Math.PI / 2;
+      scene.add(mesh);
+
+      const grid = new THREE.GridHelper(200, 40, 0x000000, 0x000000);
+      grid.material.opacity = 0.2;
+      grid.material.transparent = true;
+      scene.add(grid);
+
+      // model
+      const loader = new GLTFLoader();
+      loader.load(
+        "../static/gltf/test/school_building.glb",
+        function (gltf) {
+          model = gltf.scene;
+          scene.add(model);
+        },
+        undefined,
+        function (e) {
+          console.error(e);
+        }
+      );
+
+
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setAnimationLoop(animate);
+      container.appendChild(renderer.domElement);
+
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.update();
+
+
+      // stats
+      stats = new Stats();
+      container.appendChild(stats.dom);
+    }
+
+
+    function animate() {
+      const dt = clock.getDelta();
+
+      if (mixer) {
+        mixer.update(dt);
+      }
+
+      renderer.render(scene, camera);
+
+      if (controls) {
+        controls.update();
+      }
+
+      stats.update();
+    }
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width" />
+    <link href="../css/reset.css" rel="stylesheet" />
+    <title>test gl-layers</title>
+    <style>
+        body,
+        html {
+            height: 100%;
+            color: #222;
+        }
+
+        a {
+            color: #2fa1d6;
+        }
+
+        p {
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 0 2em;
+        }
+
+        .container {
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container" class="container"></div>
+    <button id="startBtn">运动</button>
+    <button id="stopBtn">停止</button>
+    <div class="toolbar">
+        <!-- <div class="toolbar-group">
+      <button onclick="toggleLayer('tilesLayer', 'show')">显示3D瓦片图层</button>
+      <button onclick="toggleLayer('tilesLayer', 'hide')">隐藏3D瓦片图层</button>
+    </div> -->
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+    <script src="../js/axios.min.js"></script>
+
+    <script type="module">
+        import * as THREE from "three";
+
+        import Stats from "three/addons/libs/stats.module.js";
+
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        import { World } from '../World/World.js';
+        let world;
+        let startBtn = document.getElementById('startBtn')
+        let stopBtn = document.getElementById('stopBtn')
+        startBtn.addEventListener('click', () => {
+            world.start()
+        })
+        stopBtn.addEventListener('click', () => {
+            world.stop()
+        })
+        // create the main function
+        function main() {
+            // code to set up the World App will go here
+            const container = document.querySelector('#container');
+
+            // 1. Create an instance of the World app
+            world = new World(container);
+            // world.start()
+            // 2. Render the scene
+            world.render();
+        }
+
+        // call main to start the app
+        main();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,11 @@
+Model Information:
+* title:	UAV(unmanned Aerial Vehicle)
+* source:	https://sketchfab.com/3d-models/uavunmanned-aerial-vehicle-5f6f9115d1ae4d5c994fb348eb8e70aa
+* author:	WeBuild 3D (https://sketchfab.com/webuild)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "UAV(unmanned Aerial Vehicle)" (https://sketchfab.com/3d-models/uavunmanned-aerial-vehicle-5f6f9115d1ae4d5c994fb348eb8e70aa) by WeBuild 3D (https://sketchfab.com/webuild) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
