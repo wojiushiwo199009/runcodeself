@@ -51,19 +51,20 @@
     import * as THREE from "three";
 
     import Stats from "three/addons/libs/stats.module.js";
-
+    import { GUI } from "three/addons/libs/lil-gui.module.min.js";
     import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
     import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
     let container,
       cube,
+      gui, activeAction, previousAction,
       stats,
       clock,
       p1,
       p3,
       mixer,
-      mixer1,
+      mixer1, actions,
       mixer2, mixer3;
     let camera, scene, renderer, model, face, controls;
 
@@ -91,7 +92,6 @@
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setClearColor(0xffffff, 1);
       renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setAnimationLoop(animate1);
       container.appendChild(renderer.domElement);
       // 动画根据clock帧进行
       clock = new THREE.Clock();
@@ -151,7 +151,7 @@
       p1.position.set(20, 0, 0)
 
       controls = new OrbitControls(camera, renderer.domElement);
-
+      controls.update();
       window.addEventListener("resize", onWindowResize);
 
       // stats
@@ -163,7 +163,10 @@
 
       // 动画
       mixer2 = new THREE.AnimationMixer(p1);
-      mixer2.clipAction(p1.animations[4]).play();
+      createGUI(p1, p1.animations)
+      renderer.setAnimationLoop(animate1);
+
+      // mixer2.clipAction(p1.animations[4]).play();
 
 
       let p4 = await loadGLTF(loader1, "../static/gltf/RobotExpressive.glb",);
@@ -176,8 +179,9 @@
       mixer3 = new THREE.AnimationMixer(p4.scene);
       mixer3.clipAction(p4.animations[0]).play();
 
-      animate1();
-      animate2()
+      // animate1();
+      // animate2()
+      // renderer.render(scene, camera);
     }
 
     // 让3d动起来
@@ -229,18 +233,76 @@
 
     // 动画循环
     function animate1() {
-      const elapsedTime = clock.getElapsedTime()
-      // 浏览器API
-      requestAnimationFrame(animate1);
-      p1.position.x = Math.cos(elapsedTime * 0.6) * 5 + 6
-      p1.position.z = Math.sin(elapsedTime * 0.6) * 5
-      p1.rotation.y += 0.06;
+      const dt = clock.getDelta();
+      if (mixer2) {
+        mixer2.update(dt);
+      }
       p3.scene.rotation.y += 0.06;
       cube.rotation.x += 0.5;
-      controls.update() // 更新轨道控制器  
-      stats.update() // 更新监控帧数
+
+      if (controls) {
+        controls.update();
+      }
+      stats.update();
       renderer.render(scene, camera);
+
     }
+    const api = { state: "root|idle" };
+    const allAction = []
+    function createGUI(model, animations) {
+      const states = animations.map(v => {
+        return v.name
+      });
+      gui = new GUI();
+      actions = {}
+      for (let i = 0; i < animations.length; i++) {
+        allAction.push({
+          name: animations[i].name,
+          time: animations[i].duration
+        })
+        const clip = animations[i];
+        const action = mixer2.clipAction(clip);
+        actions[clip.name] = action;
+      }
+      const statesFolder = gui.addFolder('States');
+      const clipCtrl = statesFolder.add(api, 'state').options(states)
+
+      let idx = 0
+      setInterval(() => {
+        //  clipCtrl.onChange(() => {
+        ++idx
+        if (idx > 4) idx = 0
+        fadeToAction(allAction[idx].name, 0.5)
+        // })
+      }, allAction[idx].time * 1000);
+
+      clipCtrl.onChange(() => {
+        fadeToAction(api.state, 0.5)
+      })
+      statesFolder.open()
+      activeAction = actions[states[3]];
+      activeAction.play();
+    }
+
+    /**
+       * @description 切换动作
+       * @param name {String} 动作名
+       * @param duration {Number} 切换过渡时间
+       */
+    function fadeToAction(name, duration) {
+      previousAction = activeAction
+      activeAction = actions[name]
+      if (previousAction != activeAction) {
+        previousAction.fadeOut(duration)
+      }
+      activeAction
+        .reset()
+        .setEffectiveTimeScale(1)
+        .setEffectiveWeight(1)
+        .fadeIn(duration)
+        .play();
+    }
+
 
     function onWindowResize() {
       camera.aspect = window.innerWidth / window.innerHeight;
