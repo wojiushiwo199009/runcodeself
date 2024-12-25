@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cake</title>
+    <style>
+        #cake {
+            height: 500px;
+            width: 500px;
+            background-color: black;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="cake"></div>
+    <script type="importmap">
+              {
+                "imports": {
+                  "three": "../js/three.module.js",
+                  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+                }
+              }
+            </script>
+    <script type="module">
+        import * as THREE from "three";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        // import {
+        //     getTextArraySprite,
+        //     getDrawColors
+        // } from './util.js';
+
+        let that = {
+            //颜色
+            colors: ['#fcc02a', '#f16b91', '#187bac'],
+            //数据
+            data: [
+                { name: '小学', value: 100 },
+                { name: '中学', value: 200 },
+                { name: '大学', value: 300 }
+            ],
+            //是否显示标签
+            isLabel: true,
+            //最大高度
+            maxHeight: 20,
+            //基础高度
+            baseHeight: 10,
+            //外半径
+            outerRadius: 30,
+            //内半径
+            innerRadius: 0.01,
+            //单位后缀
+            suffix: '',
+            //字体大小
+            fontSize: 10,
+            //字体颜色
+            fontColor: 'rgba(255,255,255,1)',
+            //开启动画
+            isAnimate: false,
+            //视角控制
+            viewControl: {
+                autoCamera: true,
+                width: 1,
+                height: 1.6,
+                depth: 1,
+                centerX: 1,
+                centerY: 1,
+                centerZ: 1
+            }
+        }
+        let group = new THREE.Group(), cLen = 15, colors = ['red', 'green', 'blue'], container, camera, scene, clock, renderer, controls;
+        createChart()
+        function createChart() {
+
+            container = document.getElementById('cake')
+
+            camera = new THREE.PerspectiveCamera(
+                45,
+                window.innerWidth / window.innerHeight,
+                0.25,
+                600
+            );
+            camera.position.set(-18.025190866867646, 10.815114520120584, 70.05038173373529);
+
+
+            scene = new THREE.Scene();
+            // 辅助轴
+            // const axesHelper = new THREE.AxesHelper(20)
+            // scene.add(axesHelper)
+
+            scene.background = new THREE.Color(0xffffff);
+            // 3D场景渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0xffffff, 1);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
+
+            console.log(scene, camera, 'scene');
+
+            clock = new THREE.Clock();
+            // lights
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+            hemiLight.position.set(0, 100, 0);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(0, 100, 10);
+            scene.add(dirLight);
+
+
+            // if (group) {
+            //     group = null;
+            // }
+            if (that.data.length == 0) {
+                return;
+            }
+            //从小到大排序
+            that.data = that.data.sort((a, b) => a.value - b.value);
+            let {
+                baseHeight,
+                radius,
+                perHeight,
+                maxHeight,
+                fontColor,
+                fontSize,
+                outerRadius,
+                innerRadius
+            } = that;
+
+            let sum = 0;
+            let min = Number.MAX_SAFE_INTEGER;
+            let max = 0;
+            for (let i = 0; i < that.data.length; i++) {
+                let item = that.data[i];
+                sum += item.value;
+                if (min > item.value) {
+                    min = item.value;
+                }
+                if (max < item.value) {
+                    max = item.value;
+                }
+            }
+            let ra = outerRadius - innerRadius;
+            let startRadius = 0;
+            let valLen = max - min;
+            let allHeight = maxHeight - baseHeight;
+            let axis = new THREE.Vector3(1, 0, 0);
+
+            scene.add(group);
+
+            for (let idx = 0; idx < that.data.length; idx++) {
+                let objGroup = new THREE.Group();
+                objGroup.name = 'group' + idx;
+                let item = that.data[idx];
+                //角度范围
+                let angel = (item.value / sum) * Math.PI * 2;
+                //高度与值的映射
+                let h = baseHeight + ((item.value - min) / valLen) * allHeight;
+                console.log(h, 'h');
+                //每个3D组成块组成：扇形柱体加两片矩形面
+                if (item.value) {
+                    //创建渐变色材质组
+                    let cs = colors[idx];
+                    console.log(cs, 'cs');
+                    //外圈
+                    let geometry = new THREE.CylinderGeometry(
+                        outerRadius,
+                        outerRadius,
+                        h,
+                        24,
+                        24,
+                        true,
+                        startRadius,
+                        angel
+                    );
+                    ;
+                    let mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+                        color: cs,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    }));
+                    mesh.position.y = h * 0.5;
+                    mesh.name = 'p' + idx;
+                    objGroup.add(mesh);
+                    //内圈
+                    let geometry1 = new THREE.CylinderGeometry(
+                        innerRadius,
+                        innerRadius,
+                        h,
+                        24,
+                        24,
+                        true,
+                        startRadius,
+                        angel
+                    );
+                    let mesh1 = new THREE.Mesh(geometry1, new THREE.MeshBasicMaterial({
+                        color: cs,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    }));
+                    mesh1.position.y = h * 0.5;
+                    mesh1.name = 'pp' + idx;
+                    objGroup.add(mesh1);
+
+                    let geometry2 = new THREE.RingGeometry(
+                        innerRadius,
+                        outerRadius,
+                        32,
+                        1,
+                        startRadius,
+                        angel
+                    );
+                    //上盖
+                    let mesh2 = new THREE.Mesh(geometry2, new THREE.MeshBasicMaterial({
+                        color: cs,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    }));
+                    mesh2.name = 'up' + idx;
+                    mesh2.rotateX(-0.5 * Math.PI);
+                    mesh2.rotateZ(-0.5 * Math.PI);
+                    mesh2.position.y = h;
+                    objGroup.add(mesh2);
+                    //下盖
+                    let mesh3 = new THREE.Mesh(geometry2, new THREE.MeshBasicMaterial({
+                        color: cs,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    }));
+                    mesh3.name = 'down' + idx;
+                    mesh3.rotateX(-0.5 * Math.PI);
+                    mesh3.rotateZ(-0.5 * Math.PI);
+                    mesh3.position.y = 0;
+                    objGroup.add(mesh3);
+
+                    let m = new THREE.MeshBasicMaterial({
+                        color: cs,
+                        transparent: true,
+                        side: THREE.DoubleSide
+                    });
+
+                    //侧面1
+                    const g = new THREE.PlaneGeometry(ra, h);
+                    const plane = new THREE.Mesh(g, m);
+                    plane.position.y = h * 0.5;
+                    plane.position.x = 0;
+                    plane.position.z = 0;
+                    plane.name = 'c' + idx;
+                    plane.rotation.y = startRadius + Math.PI * 0.5;
+                    plane.translateOnAxis(axis, -(innerRadius + 0.5 * ra));
+                    objGroup.add(plane);
+                    //侧面2
+                    const plane1 = new THREE.Mesh(g, m);
+                    plane1.position.y = h * 0.5;
+                    plane1.position.x = 0;
+                    plane1.position.z = 0;
+                    plane1.name = 'b' + idx;
+                    plane1.rotation.y = startRadius + angel + Math.PI * 0.5;
+                    plane1.translateOnAxis(axis, -(innerRadius + 0.5 * ra));
+                    objGroup.add(plane1);
+
+                    //显示label
+                    // if (that.isLabel) {
+                    //     let textList = [
+                    //         { text: item.name, color: fontColor },
+                    //         { text: item.value + that.suffix, color: fontColor }
+                    //     ];
+
+                    //     const { mesh: textMesh } = getTextArraySprite(THREE, textList, fontSize);
+                    //     textMesh.name = 'f' + idx;
+                    //     //y轴位置
+                    //     textMesh.position.y = maxHeight + baseHeight;
+                    //     // //x,y轴位置
+                    //     let r = startRadius + angel * 0.5 + Math.PI * 0.5;
+                    //     let rr = innerRadius + 0.5 * ra;
+                    //     textMesh.position.x = -Math.cos(r) * rr;
+                    //     textMesh.position.z = Math.sin(r) * rr;
+                    //     if (this.that.isAnimate) {
+                    //         if (idx == 0) {
+                    //             textMesh.visible = true;
+                    //         } else {
+                    //             textMesh.visible = false;
+                    //         }
+                    //     }
+
+                    //     objGroup.add(textMesh);
+                    // }
+                    console.log(group, 'group');
+                    group.add(objGroup);
+                }
+                startRadius = angel + startRadius;
+            }
+            animate1()
+        }
+
+        function animate1() {
+            const dt = clock.getDelta();
+
+            if (controls) {
+                controls.update();
+            }
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate1)
+        }
+    </script>
+</body>
+
+</html>
