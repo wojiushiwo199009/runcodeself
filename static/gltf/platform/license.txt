@@ -1,0 +1,11 @@
+Model Information:
+* title:	Display Podium
+* source:	https://sketchfab.com/3d-models/display-podium-5cfc90b0af8a4b0b9acd2524f829bb4a
+* author:	TheRealDigitalMaster (https://sketchfab.com/digitalmaster)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Display Podium" (https://sketchfab.com/3d-models/display-podium-5cfc90b0af8a4b0b9acd2524f829bb4a) by TheRealDigitalMaster (https://sketchfab.com/digitalmaster) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

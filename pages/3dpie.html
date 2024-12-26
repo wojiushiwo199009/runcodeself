@@ -8,8 +8,8 @@
     <title>Cake</title>
     <style>
         #cake {
-            height: 500px;
-            width: 500px;
+            height: 100%;
+            width: 100%;
             background-color: black;
         }
     </style>
@@ -27,11 +27,24 @@
             </script>
     <script type="module">
         import * as THREE from "three";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
         import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-        // import {
+        import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+        import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+        import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+        import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+        import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js'
+
+        // import { TextGeometry } from 'three/src/geometries/TextGeometry'         // import {
         //     getTextArraySprite,
         //     getDrawColors
         // } from './util.js';
+        const initParams = {
+            threshold: 0,
+            strength: 0.4,
+            radius: 0.05,
+            exposure: 0.1,
+        };
 
         let that = {
             //颜色
@@ -51,7 +64,7 @@
             //外半径
             outerRadius: 30,
             //内半径
-            innerRadius: 0.01,
+            innerRadius: 27,
             //单位后缀
             suffix: '',
             //字体大小
@@ -71,9 +84,58 @@
                 centerZ: 1
             }
         }
-        let group = new THREE.Group(), cLen = 15, colors = ['red', 'green', 'blue'], container, camera, scene, clock, renderer, controls;
+        let group = new THREE.Group(), platform, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
         createChart()
-        function createChart() {
+
+        function getCanvasTextArray(textList, fontSize) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = fontSize + 'px Arial';
+            let textLen = 0;
+            textList.forEach((item) => {
+                let w = ctx.measureText(item.text + '').width;
+                if (w > textLen) {
+                    textLen = w;
+                }
+            });
+            canvas.width = textLen;
+            canvas.height = fontSize * 1.2 * textList.length;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.font = fontSize + 'px Arial';
+            textList.forEach((item, idx) => {
+                ctx.fillStyle = item.color;
+                ctx.fillText(item.text, 0, fontSize * 1.2 * idx + fontSize);
+            });
+
+
+            return canvas;
+        }
+
+        function getCanvaMat(THREE, canvas, scale = 0.1) {
+
+            const map = new THREE.CanvasTexture(canvas);
+            map.wrapS = THREE.RepeatWrapping;
+            map.wrapT = THREE.RepeatWrapping;
+
+            const material = new THREE.SpriteMaterial({
+                map: map,
+
+                side: THREE.DoubleSide
+            });
+            const mesh = new THREE.Sprite(material);
+            //缩小等比缩小canvas精灵贴图
+            mesh.scale.set(canvas.width * scale, canvas.height * scale);
+            return { material, mesh, map };
+        }
+        function getTextArraySprite(THREE, textlist, fontSize) {
+            //生成五倍大小的canvas贴图，避免大小问题出现显示模糊
+            const canvas = getCanvasTextArray(textlist, fontSize * 5);
+
+            return { ...getCanvaMat(THREE, canvas, 0.1), canvas };
+        }
+
+
+        async function createChart() {
 
             container = document.getElementById('cake')
 
@@ -83,7 +145,7 @@
                 0.25,
                 600
             );
-            camera.position.set(-18.025190866867646, 10.815114520120584, 70.05038173373529);
+            camera.position.set(18, 10, 150);
 
 
             scene = new THREE.Scene();
@@ -91,11 +153,12 @@
             // const axesHelper = new THREE.AxesHelper(20)
             // scene.add(axesHelper)
 
-            scene.background = new THREE.Color(0xffffff);
+            scene.background = new THREE.Color(0x333333);
             // 3D场景渲染器
             renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
             renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setClearColor(0xffffff, 1);
+            // 开启阴影
+            renderer.shadowMap.enabled = true;
             renderer.setSize(window.innerWidth, window.innerHeight);
             container.appendChild(renderer.domElement);
             controls = new OrbitControls(camera, renderer.domElement);
@@ -104,15 +167,28 @@
 
             clock = new THREE.Clock();
             // lights
-            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
-            hemiLight.position.set(0, 100, 0);
-            scene.add(hemiLight);
+            // const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+            // hemiLight.position.set(0, 100, 0);
+            // scene.add(hemiLight);
 
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
             dirLight.position.set(0, 100, 10);
             scene.add(dirLight);
 
+            const pointLight = new THREE.PointLight(0xffffff, 100);
+            pointLight.position.set(100, 0, 100)
+            scene.add(pointLight)
+            // 环境光
+            let light = new THREE.AmbientLight(0xffffff, 1); // soft white light
+            scene.add(light);
 
+            // model
+            const loader = new GLTFLoader();
+            platform = await loadGLTF(loader, "../static/gltf/platform/scene.gltf",);
+            const model = platform.scene;
+            console.log(model, 'model');
+            model.scale.set(12, 12, 12)
+            model.position.set(0, -16, 0)
             // if (group) {
             //     group = null;
             // }
@@ -151,7 +227,9 @@
             let allHeight = maxHeight - baseHeight;
             let axis = new THREE.Vector3(1, 0, 0);
 
+            group.add(model)
             scene.add(group);
+
 
             for (let idx = 0; idx < that.data.length; idx++) {
                 let objGroup = new THREE.Group();
@@ -178,7 +256,6 @@
                         startRadius,
                         angel
                     );
-                    ;
                     let mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
                         color: cs,
                         transparent: true,
@@ -225,7 +302,28 @@
                     mesh2.rotateX(-0.5 * Math.PI);
                     mesh2.rotateZ(-0.5 * Math.PI);
                     mesh2.position.y = h;
-                    objGroup.add(mesh2);
+                    let group2 = new THREE.Group()
+                    group2.name = 'group2' + idx;
+                    group2.add(mesh2);
+                    // 加载文字
+                    const geometry3 = new THREE.BufferGeometry();
+                    // 创建一个简单的矩形. 在这里我们左上和右下顶点被复制了两次。
+                    // 因为在两个三角面片里，这两个顶点都需要被用到。
+                    let textList = [
+                        { text: item.name, color: cs },
+                        { text: item.value + that.suffix, color: cs }
+                    ];
+                    let fontSize = 10
+                    const { mesh: textMesh } = getTextArraySprite(THREE, textList, fontSize);
+                    let r = startRadius + angel * 0.5 + Math.PI * 0.5;
+                    let rr = innerRadius + 0.5 * ra;
+                    textMesh.position.set(-Math.cos(r) * rr, maxHeight + 5, Math.sin(r) * rr)
+                    group2.add(textMesh);
+                    objGroup.add(group2);
+
+
+
+
                     //下盖
                     let mesh3 = new THREE.Mesh(geometry2, new THREE.MeshBasicMaterial({
                         color: cs,
@@ -292,11 +390,101 @@
                     // }
                     console.log(group, 'group');
                     group.add(objGroup);
+                    group.scale.set(0.5, 0.5, 0.5)
+
+
                 }
                 startRadius = angel + startRadius;
+
             }
+            group.rotation.x = Math.PI / 5
+
+
+            // 辅助轴
+            const axesHelper = new THREE.AxesHelper(20)
+            scene.add(axesHelper)
+            // renderer.render(scene, camera);
+
+            // 物体自己发光
+            // 创建了一个RenderPass对象，用于将场景渲染到纹理上。
+            const renderScene = new RenderPass(scene, camera);
+
+            // 创建了一个UnrealBloomPass对象，用于实现辉光效果。≈
+            const bloomPass = new UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                1.5,
+                0.4,
+                0.85
+            );
+            console.log(bloomPass, 'bloomPass');
+            // 设置发光参数,阈值、强度和半径。
+            bloomPass.threshold = initParams.threshold;
+            bloomPass.strength = initParams.strength;
+            bloomPass.radius = initParams.radius;
+
+            // 创建了一个OutputPass对象，用于将最终渲染结果输出到屏幕上。
+            const outputPass = new OutputPass();
+
+            // // 创建了一个EffectComposer对象，并将RenderPass、UnrealBloomPass和OutputPass添加到渲染通道中。
+            composer = new EffectComposer(renderer);
+            composer.renderToScreen = false;
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+            composer.addPass(outputPass);
+
+            // 边缘发光
+            // 为了获取发光的mesh
+            //  scene.traverse((item) => {
+            //     if (item.name.includes('Object_')) {
+            //         lightMeshs.push(item)
+            //     }
+            // })
+            // outlineObj(platform)
+
+
             animate1()
         }
+        function loadGLTF(md, url) {
+            return new Promise((resolve, reject) => {
+                md.load(
+                    url,
+                    gltf => {
+                        console.log(gltf, 'gltf');
+                        scene.add(gltf.scene);
+                        resolve(gltf);
+                    },
+                    undefined,
+                    function (error) {
+                        console.error(error);
+                    }
+                );
+            });
+        }
+
+        //高亮显示模型（呼吸灯）
+        function outlineObj(selectedObjects) {
+            // 物体边缘发光通道
+            let outlinePass = new OutlinePass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                scene,
+                camera,
+            )
+
+            outlinePass.edgeStrength = 5.0 // 高光边缘边框的亮度
+            outlinePass.edgeGlow = 1 // 光晕[0,1]  边缘微光强度
+            outlinePass.usePatternTexture = false // 是否使用父级的材质，纹理覆盖
+            outlinePass.edgeThickness = 4 // 边框宽度，高光厚度
+            outlinePass.downSampleRatio = 1 // 边框弯曲度
+            outlinePass.pulsePeriod = 3 // 呼吸闪烁的速度，数值越大，律动越慢
+            // outlinePass.visibleEdgeColor.set(parseInt(0xff8000)) // 呼吸显示的颜色
+            outlinePass.hiddenEdgeColor = new THREE.Color(1, 0, 0) // 呼吸消失的颜色
+            // outlinePass.clear = true
+            composer.addPass(outlinePass) // 加入高光特效
+            outlinePass.selectedObjects = lightMeshs // 需要高光的模型
+
+            renderer.render(scene, camera);
+        }
+
 
         function animate1() {
             const dt = clock.getDelta();
@@ -304,7 +492,9 @@
             if (controls) {
                 controls.update();
             }
-            renderer.render(scene, camera);
+            group.rotation.y += 0.06;
+            // renderer.render(scene, camera);
+            composer.render()
             requestAnimationFrame(animate1)
         }
     </script>
