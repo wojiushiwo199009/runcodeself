@@ -42,15 +42,10 @@
         //     getTextArraySprite,
         //     getDrawColors
         // } from './util.js';
-        const initParams = {
-            threshold: 0,
-            strength: 0.7,
-            radius: 0.5,
-            exposure: 0.7,
-        };
+
         var params = {
             exposure: 1,
-            bloomStrength: 1.5,
+            bloomStrength: 1,
             bloomThreshold: 0,
             bloomRadius: 0
         };
@@ -66,9 +61,9 @@
             //是否显示标签
             isLabel: true,
             //最大高度
-            maxHeight: 20,
+            maxHeight: 15,
             //基础高度
-            baseHeight: 10,
+            baseHeight: 6,
             //外半径
             outerRadius: 30,
             //内半径
@@ -393,15 +388,42 @@
             group.rotation.x = Math.PI / 5
 
 
-            // 辅助轴
-            const axesHelper = new THREE.AxesHelper(20)
-            scene.add(axesHelper)
 
             // 物体自己发光
             // 创建了一个RenderPass对象，用于将场景渲染到纹理上。
+            bloomComposer = new EffectComposer(renderer)
+
             // RenderPass这个通道会渲染场景，但不会将渲染结果输出到屏幕上
             const renderScene = new RenderPass(scene, camera)
-            const effectCopy = new ShaderPass(CopyShader); //传入了CopyShader着色器，用于拷贝渲染结果
+            const effectCopy = new ShaderPass(new THREE.ShaderMaterial({
+                uniforms: {
+                    baseTexture: { value: null },
+                    bloomTexture: { value: bloomComposer.renderTarget2.texture },
+                    tDiffuse: {
+                        value: null
+                    }
+                },
+                vertexShader: '\t\t\tvarying vec2 vUv;\n' +
+                    '\n' +
+                    '\t\t\tvoid main() {\n' +
+                    '\n' +
+                    '\t\t\t\tvUv = uv;\n' +
+                    '\n' +
+                    '\t\t\t\tgl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
+                    '\n' +
+                    '\t\t\t}',
+                fragmentShader: '\t\t\tuniform sampler2D baseTexture;\n' +
+                    '\t\t\tuniform sampler2D bloomTexture;\n' +
+                    '\n' +
+                    '\t\t\tvarying vec2 vUv;\n' +
+                    '\n' +
+                    '\t\t\tvoid main() {\n' +
+                    '\n' +
+                    '\t\t\t\tgl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );\n' +
+                    '\n' +
+                    '\t\t\t}',
+                defines: {},
+            }), 'baseTexture'); //传入了CopyShader着色器，用于拷贝渲染结果
             effectCopy.renderToScreen = true;
             // THREE.BloomPass(strength, kernelSize, sigma, Resolution)
             // strength 定义泛光效果的强度，值越高，明亮的区域越明亮，而且渗入较暗区域的也就越多
@@ -417,7 +439,6 @@
             bloomPass.strength = params.bloomStrength;
             bloomPass.radius = params.bloomRadius;
 
-            bloomComposer = new EffectComposer(renderer)
             bloomComposer.setSize(window.innerWidth, window.innerHeight);
             bloomComposer.addPass(renderScene);
             bloomComposer.addPass(bloomPass);
@@ -545,6 +566,10 @@
             renderer.clearDepth()
             camera.layers.set(0)
             group.rotation.y += 0.06;
+
+            params.bloomStrength -= 0.2
+            if (params.bloomStrength < 0) params.bloomStrength = 1
+            bloomPass.strength = params.bloomStrength;
             renderer.render(scene, camera)
             requestAnimationFrame(animate1);
         }
