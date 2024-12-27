@@ -32,6 +32,9 @@
         import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
         import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
         import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'; // ShaderPass/使用该通道你可以传入一个自定义的着色器，用来生成高级的、自定义的后期处理通道
+        import Stats from "three/addons/libs/stats.module.js";
+        import { CopyShader } from 'three/addons/shaders/CopyShader.js'; // 传入了CopyShader着色器，用于拷贝渲染结果
         import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
         import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js'
 
@@ -41,11 +44,16 @@
         // } from './util.js';
         const initParams = {
             threshold: 0,
-            strength: 0.4,
-            radius: 0.05,
-            exposure: 0.1,
+            strength: 0.7,
+            radius: 0.5,
+            exposure: 0.7,
         };
-
+        var params = {
+            exposure: 1,
+            bloomStrength: 1.5,
+            bloomThreshold: 0,
+            bloomRadius: 0
+        };
         let that = {
             //颜色
             colors: ['#fcc02a', '#f16b91', '#187bac'],
@@ -84,7 +92,7 @@
                 centerZ: 1
             }
         }
-        let group = new THREE.Group(), platform, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
+        let group = new THREE.Group(), platform, stats, bloomPass, bloomComposer, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
         createChart()
 
         function getCanvasTextArray(textList, fontSize) {
@@ -149,28 +157,29 @@
 
 
             scene = new THREE.Scene();
+            // scene.background= new THREE.Color(0x333333);
+
             // 辅助轴
             // const axesHelper = new THREE.AxesHelper(20)
             // scene.add(axesHelper)
 
-            scene.background = new THREE.Color(0x333333);
-            // 3D场景渲染器
+            var ambientLight = new THREE.AmbientLight('#ffffff', 0.7) // offline
+            scene.add(ambientLight)
+            // renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
             renderer.setPixelRatio(window.devicePixelRatio);
+            // 很重要，不然光晕不起作用
+            renderer.autoClear = false
             // 开启阴影
             renderer.shadowMap.enabled = true;
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             container.appendChild(renderer.domElement);
+            renderer.render(scene, camera);
+            stats = new Stats();
+            container.appendChild(stats.dom);
             controls = new OrbitControls(camera, renderer.domElement);
-
-            console.log(scene, camera, 'scene');
-
             clock = new THREE.Clock();
-            // lights
-            // const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
-            // hemiLight.position.set(0, 100, 0);
-            // scene.add(hemiLight);
-
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
             dirLight.position.set(0, 100, 10);
             scene.add(dirLight);
@@ -181,12 +190,14 @@
             // 环境光
             let light = new THREE.AmbientLight(0xffffff, 1); // soft white light
             scene.add(light);
-
             // model
             const loader = new GLTFLoader();
             platform = await loadGLTF(loader, "../static/gltf/platform/scene.gltf",);
             const model = platform.scene;
             console.log(model, 'model');
+            platform.scene.children[0].children[0].children[0].children[0].children.map((item) => {
+                item.layers.enable(1);
+            })
             model.scale.set(12, 12, 12)
             model.position.set(0, -16, 0)
             // if (group) {
@@ -228,8 +239,8 @@
             let axis = new THREE.Vector3(1, 0, 0);
 
             group.add(model)
-            scene.add(group);
 
+            scene.add(group);
 
             for (let idx = 0; idx < that.data.length; idx++) {
                 let objGroup = new THREE.Group();
@@ -261,6 +272,7 @@
                         transparent: true,
                         side: THREE.DoubleSide
                     }));
+                    mesh.layers.enable(0)
                     mesh.position.y = h * 0.5;
                     mesh.name = 'p' + idx;
                     objGroup.add(mesh);
@@ -280,8 +292,10 @@
                         transparent: true,
                         side: THREE.DoubleSide
                     }));
+                    mesh1.layers.enable(0)
                     mesh1.position.y = h * 0.5;
                     mesh1.name = 'pp' + idx;
+
                     objGroup.add(mesh1);
 
                     let geometry2 = new THREE.RingGeometry(
@@ -298,6 +312,7 @@
                         transparent: true,
                         side: THREE.DoubleSide
                     }));
+                    mesh2.layers.enable(0)
                     mesh2.name = 'up' + idx;
                     mesh2.rotateX(-0.5 * Math.PI);
                     mesh2.rotateZ(-0.5 * Math.PI);
@@ -317,6 +332,7 @@
                     const { mesh: textMesh } = getTextArraySprite(THREE, textList, fontSize);
                     let r = startRadius + angel * 0.5 + Math.PI * 0.5;
                     let rr = innerRadius + 0.5 * ra;
+                    textMesh.layers.enable(0)
                     textMesh.position.set(-Math.cos(r) * rr, maxHeight + 5, Math.sin(r) * rr)
                     group2.add(textMesh);
                     objGroup.add(group2);
@@ -330,6 +346,7 @@
                         transparent: true,
                         side: THREE.DoubleSide
                     }));
+                    mesh3.layers.enable(0)
                     mesh3.name = 'down' + idx;
                     mesh3.rotateX(-0.5 * Math.PI);
                     mesh3.rotateZ(-0.5 * Math.PI);
@@ -345,6 +362,7 @@
                     //侧面1
                     const g = new THREE.PlaneGeometry(ra, h);
                     const plane = new THREE.Mesh(g, m);
+                    plane.layers.enable(0)
                     plane.position.y = h * 0.5;
                     plane.position.x = 0;
                     plane.position.z = 0;
@@ -354,6 +372,7 @@
                     objGroup.add(plane);
                     //侧面2
                     const plane1 = new THREE.Mesh(g, m);
+                    plane1.layers.enable(0)
                     plane1.position.y = h * 0.5;
                     plane1.position.x = 0;
                     plane1.position.z = 0;
@@ -362,32 +381,6 @@
                     plane1.translateOnAxis(axis, -(innerRadius + 0.5 * ra));
                     objGroup.add(plane1);
 
-                    //显示label
-                    // if (that.isLabel) {
-                    //     let textList = [
-                    //         { text: item.name, color: fontColor },
-                    //         { text: item.value + that.suffix, color: fontColor }
-                    //     ];
-
-                    //     const { mesh: textMesh } = getTextArraySprite(THREE, textList, fontSize);
-                    //     textMesh.name = 'f' + idx;
-                    //     //y轴位置
-                    //     textMesh.position.y = maxHeight + baseHeight;
-                    //     // //x,y轴位置
-                    //     let r = startRadius + angel * 0.5 + Math.PI * 0.5;
-                    //     let rr = innerRadius + 0.5 * ra;
-                    //     textMesh.position.x = -Math.cos(r) * rr;
-                    //     textMesh.position.z = Math.sin(r) * rr;
-                    //     if (this.that.isAnimate) {
-                    //         if (idx == 0) {
-                    //             textMesh.visible = true;
-                    //         } else {
-                    //             textMesh.visible = false;
-                    //         }
-                    //     }
-
-                    //     objGroup.add(textMesh);
-                    // }
                     console.log(group, 'group');
                     group.add(objGroup);
                     group.scale.set(0.5, 0.5, 0.5)
@@ -403,47 +396,86 @@
             // 辅助轴
             const axesHelper = new THREE.AxesHelper(20)
             scene.add(axesHelper)
-            // renderer.render(scene, camera);
 
             // 物体自己发光
             // 创建了一个RenderPass对象，用于将场景渲染到纹理上。
-            const renderScene = new RenderPass(scene, camera);
+            // RenderPass这个通道会渲染场景，但不会将渲染结果输出到屏幕上
+            const renderScene = new RenderPass(scene, camera)
+            const effectCopy = new ShaderPass(CopyShader); //传入了CopyShader着色器，用于拷贝渲染结果
+            effectCopy.renderToScreen = true;
+            // THREE.BloomPass(strength, kernelSize, sigma, Resolution)
+            // strength 定义泛光效果的强度，值越高，明亮的区域越明亮，而且渗入较暗区域的也就越多
+            // kernelSize 控制泛光的偏移量
+            // sigma 控制泛光的锐利程度，值越高，泛光越模糊
+            // Resolution 定义泛光的解析图，如果该值太低，结果的方块化就会越严重
+            // const bloomPass = new BloomPass(2, 25, 4.0, 256); //BloomPass通道效果
+            //创建效果组合器对象，可以在该对象上添加后期处理通道，通过配置该对象，使它可以渲染我们的场景，并应用额外的后期处理步骤，在render循环中，使用EffectComposer渲染场景、应用通道，并输出结果。
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4,
+                0.85);
+            bloomPass.renderToScreen = true;
+            bloomPass.threshold = params.bloomThreshold;
+            bloomPass.strength = params.bloomStrength;
+            bloomPass.radius = params.bloomRadius;
 
-            // 创建了一个UnrealBloomPass对象，用于实现辉光效果。≈
-            const bloomPass = new UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
-                1.5,
-                0.4,
-                0.85
-            );
-            console.log(bloomPass, 'bloomPass');
-            // 设置发光参数,阈值、强度和半径。
-            bloomPass.threshold = initParams.threshold;
-            bloomPass.strength = initParams.strength;
-            bloomPass.radius = initParams.radius;
-
-            // 创建了一个OutputPass对象，用于将最终渲染结果输出到屏幕上。
-            const outputPass = new OutputPass();
-
-            // // 创建了一个EffectComposer对象，并将RenderPass、UnrealBloomPass和OutputPass添加到渲染通道中。
-            composer = new EffectComposer(renderer);
-            composer.renderToScreen = false;
-            composer.addPass(renderScene);
-            composer.addPass(bloomPass);
-            composer.addPass(outputPass);
+            bloomComposer = new EffectComposer(renderer)
+            bloomComposer.setSize(window.innerWidth, window.innerHeight);
+            bloomComposer.addPass(renderScene);
+            bloomComposer.addPass(bloomPass);
+            bloomComposer.addPass(effectCopy);
+            bloomComposer.render()
 
             // 边缘发光
-            // 为了获取发光的mesh
-            //  scene.traverse((item) => {
-            //     if (item.name.includes('Object_')) {
-            //         lightMeshs.push(item)
-            //     }
-            // })
             // outlineObj(platform)
+            scene.traverse((item) => {
+                console.log(item.name, 'item');
+                if (item.name.includes('Object_')) {
+                    lightMeshs.push(item)
+                    // item.layers.enable(1)
+                } else {
+                    // item.layers.enable(0);
 
+                }
+            })
 
             animate1()
         }
+
+        function sceneAnimation() {
+            let glowMaterialList = [], materials
+            glowMaterialList = lightMeshs.map(v => v.name)
+
+            controls.update()
+            // 将不需要处理辉光的材质进行存储备份
+            scene.traverse((v) => {
+                // 备份一份场景背景然后清空
+                if (v instanceof THREE.Scene) {
+                    materials.scene = v.background
+                    v.background = null
+                }
+                if (!glowMaterialList.includes(v.name) && v.isMesh) {
+                    // 备份当前材质内容
+                    materials[v.uuid] = v.material
+                    // 将不需要辉光的材质设置为黑色
+                    v.material = new THREE.MeshBasicMaterial({ color: 'black' })
+                }
+            })
+            // 执行辉光效果器渲染
+            bloomComposer.render()
+            // 在辉光渲染器执行完之后在恢复材质原效果
+            scene.traverse((v) => {
+                if (materials[v.uuid]) {
+                    v.material = materials[v.uuid]
+                    delete materials[v.uuid]
+                }
+                if (v instanceof THREE.Scene) {
+                    v.background = materials.scene
+                    delete materials.scene
+                }
+            })
+            // 执行场景效果器渲染
+            bloomComposer.render()
+        }
+
         function loadGLTF(md, url) {
             return new Promise((resolve, reject) => {
                 md.load(
@@ -487,15 +519,34 @@
 
 
         function animate1() {
-            const dt = clock.getDelta();
-
-            if (controls) {
-                controls.update();
-            }
-            group.rotation.y += 0.06;
+            // const dt = clock.getDelta();
+            // stats.update();
+            // // 渲染器清除颜色、深度或模板缓存. 此方法将颜色缓存初始化为当前颜色
+            // renderer.clear()
+            // camera.layers.set(1)
+            // if (controls) {
+            //     controls.update();
+            // }
+            // if (composer) { composer.render() }
+            // // 清除深度缓存
+            // renderer.clearDepth()
+            // camera.layers.set(0)
+            // group.rotation.y += 0.06;
             // renderer.render(scene, camera);
-            composer.render()
-            requestAnimationFrame(animate1)
+            // // composer.render()
+            // requestAnimationFrame(animate1)
+
+            stats.update();
+            // 渲染器清除颜色、深度或模板缓存. 此方法将颜色缓存初始化为当前颜色
+            renderer.clear()
+            camera.layers.set(1)
+            if (bloomComposer) { bloomComposer.render() }
+            // 清除深度缓存
+            renderer.clearDepth()
+            camera.layers.set(0)
+            group.rotation.y += 0.06;
+            renderer.render(scene, camera)
+            requestAnimationFrame(animate1);
         }
     </script>
 </body>
