@@ -152,7 +152,7 @@
 
 
             scene = new THREE.Scene();
-            // scene.background= new THREE.Color(0x333333);
+            // scene.background = new THREE.Color(0x333333);
 
             // 辅助轴
             // const axesHelper = new THREE.AxesHelper(20)
@@ -431,7 +431,7 @@
             // sigma 控制泛光的锐利程度，值越高，泛光越模糊
             // Resolution 定义泛光的解析图，如果该值太低，结果的方块化就会越严重
             // const bloomPass = new BloomPass(2, 25, 4.0, 256); //BloomPass通道效果
-            //创建效果组合器对象，可以在该对象上添加后期处理通道，通过配置该对象，使它可以渲染我们的场景，并应用额外的后期处理步骤，在render循环中，使用EffectComposer渲染场景、应用通道，并输出结果。
+            //光晕
             bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4,
                 0.85);
             bloomPass.renderToScreen = true;
@@ -446,17 +446,17 @@
             bloomComposer.render()
 
             // 边缘发光
-            // outlineObj(platform)
             scene.traverse((item) => {
                 console.log(item.name, 'item');
                 if (item.name.includes('Object_')) {
                     lightMeshs.push(item)
-                    // item.layers.enable(1)
+                    item.layers.enable(1)
                 } else {
-                    // item.layers.enable(0);
+                    item.layers.enable(0);
 
                 }
             })
+            outlineObj(platform)
 
             animate1()
         }
@@ -529,10 +529,10 @@
             outlinePass.edgeThickness = 4 // 边框宽度，高光厚度
             outlinePass.downSampleRatio = 1 // 边框弯曲度
             outlinePass.pulsePeriod = 3 // 呼吸闪烁的速度，数值越大，律动越慢
-            // outlinePass.visibleEdgeColor.set(parseInt(0xff8000)) // 呼吸显示的颜色
+            outlinePass.visibleEdgeColor.set(parseInt(0xff8000)) // 呼吸显示的颜色
             outlinePass.hiddenEdgeColor = new THREE.Color(1, 0, 0) // 呼吸消失的颜色
-            // outlinePass.clear = true
-            composer.addPass(outlinePass) // 加入高光特效
+            outlinePass.clear = true
+            bloomComposer.addPass(outlinePass) // 加入高光特效
             outlinePass.selectedObjects = lightMeshs // 需要高光的模型
 
             renderer.render(scene, camera);
