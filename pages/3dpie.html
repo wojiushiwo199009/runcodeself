@@ -12,10 +12,23 @@
             width: 100%;
             background-color: black;
         }
+
+        #loading {
+            text-align: center;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            background-color: #000;
+            color: #fff;
+
+        }
     </style>
 </head>
 
 <body>
+    <div id="loading"> </div>
     <div id="cake"></div>
     <script type="importmap">
               {
@@ -87,8 +100,7 @@
                 centerZ: 1
             }
         }
-        let group = new THREE.Group(), platform, stats, bloomPass, bloomComposer, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
-        createChart()
+        let group = new THREE.Group(), platform, loadingManager, stats, bloomPass, bloomComposer, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
 
         function getCanvasTextArray(textList, fontSize) {
             const canvas = document.createElement('canvas');
@@ -137,9 +149,7 @@
             return { ...getCanvaMat(THREE, canvas, 0.1), canvas };
         }
 
-
-        async function createChart() {
-
+        function initScene() {
             container = document.getElementById('cake')
 
             camera = new THREE.PerspectiveCamera(
@@ -155,8 +165,8 @@
             // scene.background = new THREE.Color(0x333333);
 
             // 辅助轴
-            // const axesHelper = new THREE.AxesHelper(20)
-            // scene.add(axesHelper)
+            const axesHelper = new THREE.AxesHelper(20)
+            scene.add(axesHelper)
 
             var ambientLight = new THREE.AmbientLight('#ffffff', 0.7) // offline
             scene.add(ambientLight)
@@ -165,7 +175,7 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             // 很重要，不然光晕不起作用
             renderer.autoClear = false
-            // 开启阴影
+            // 渲染器的阴影渲染开关 投影
             renderer.shadowMap.enabled = true;
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -179,25 +189,88 @@
             dirLight.position.set(0, 100, 10);
             scene.add(dirLight);
 
-            const pointLight = new THREE.PointLight(0xffffff, 100);
-            pointLight.position.set(100, 0, 100)
+            const pointLight = new THREE.PointLight(0xffffff, 1000);
+            pointLight.position.set(10, 5, 10)
+            // 打开点光源的投射光源功能 投影
+            pointLight.castShadow = true;
             scene.add(pointLight)
             // 环境光
             let light = new THREE.AmbientLight(0xffffff, 1); // soft white light
             scene.add(light);
-            // model
-            const loader = new GLTFLoader();
-            platform = await loadGLTF(loader, "../static/gltf/platform/scene.gltf",);
-            const model = platform.scene;
-            console.log(model, 'model');
-            platform.scene.children[0].children[0].children[0].children[0].children.map((item) => {
-                item.layers.enable(1);
-            })
-            model.scale.set(12, 12, 12)
-            model.position.set(0, -16, 0)
-            // if (group) {
-            //     group = null;
-            // }
+        }
+        function initModal() {
+            return new Promise((resolve, reject) => {
+
+
+
+                // 创建LoadingManager实例
+                loadingManager = new THREE.LoadingManager();
+
+                // 定义进度更新的回调函数
+                loadingManager.onLoad = function () {
+                    console.log('所有模型加载完成');
+                };
+
+                loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
+                    console.log(`加载进度: ${Math.round(itemsLoaded / itemsTotal * 100)}%`);
+                    loadingDom.innerHTML = `加载进度: ${Math.round(itemsLoaded / itemsTotal * 100)}%`;
+                };
+
+                loadingManager.onError = function (url) {
+                    console.error('模型加载出错:', url);
+                };
+
+                // model
+                const loader = new GLTFLoader(loadingManager);
+                loader.load(
+                    "../static/gltf/platform/scene.gltf",
+                    gltf => {
+                        platform = gltf
+                        const model = platform.scene;
+                        console.log(model, 'model');
+                        model.scale.set(12, 12, 12)
+                        model.position.set(0, -16, 0)
+                        group.add(model)
+                        model.traverse(function (child) {
+                            if (child.isMesh) {
+                                // 投影
+                                child.castShadow = true;
+
+                                console.log(child.geometry, '几何体');
+
+                                // 输出材质信息
+                                console.log(child.material, '材质');
+
+
+                            }
+                        });
+                        resolve(true)
+                    },
+                    undefined,
+                    function (error) {
+                        console.error(error);
+                        reject()
+                    }
+                );
+
+            });
+
+
+
+        }
+
+        function onModelProgress(progressEvent) {
+            const { loaded, total, lengthComputable } = progressEvent
+            //lengthComputable  true 可以获取到当前文件的总字节大小
+            if (lengthComputable) {
+                const progress = loaded / total * 100
+                console.log(progress + '% loaded')
+            } else {
+                console.log('已加载' + loaded + '字节')
+            }
+        }
+
+        function initPie() {
             if (that.data.length == 0) {
                 return;
             }
@@ -233,7 +306,6 @@
             let allHeight = maxHeight - baseHeight;
             let axis = new THREE.Vector3(1, 0, 0);
 
-            group.add(model)
 
             scene.add(group);
 
@@ -347,6 +419,8 @@
                     mesh3.rotateZ(-0.5 * Math.PI);
                     mesh3.position.y = 0;
                     objGroup.add(mesh3);
+                    // 投影
+                    mesh3.castShadow = true;
 
                     let m = new THREE.MeshBasicMaterial({
                         color: cs,
@@ -387,54 +461,20 @@
             }
             group.rotation.x = Math.PI / 5
 
-
-
+        }
+        function addPass() {
             // 物体自己发光
             // 创建了一个RenderPass对象，用于将场景渲染到纹理上。
             bloomComposer = new EffectComposer(renderer)
-
             // RenderPass这个通道会渲染场景，但不会将渲染结果输出到屏幕上
             const renderScene = new RenderPass(scene, camera)
-            const effectCopy = new ShaderPass(new THREE.ShaderMaterial({
-                uniforms: {
-                    baseTexture: { value: null },
-                    bloomTexture: { value: bloomComposer.renderTarget2.texture },
-                    tDiffuse: {
-                        value: null
-                    }
-                },
-                vertexShader: '\t\t\tvarying vec2 vUv;\n' +
-                    '\n' +
-                    '\t\t\tvoid main() {\n' +
-                    '\n' +
-                    '\t\t\t\tvUv = uv;\n' +
-                    '\n' +
-                    '\t\t\t\tgl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );\n' +
-                    '\n' +
-                    '\t\t\t}',
-                fragmentShader: '\t\t\tuniform sampler2D baseTexture;\n' +
-                    '\t\t\tuniform sampler2D bloomTexture;\n' +
-                    '\n' +
-                    '\t\t\tvarying vec2 vUv;\n' +
-                    '\n' +
-                    '\t\t\tvoid main() {\n' +
-                    '\n' +
-                    '\t\t\t\tgl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );\n' +
-                    '\n' +
-                    '\t\t\t}',
-                defines: {},
-            }), 'baseTexture'); //传入了CopyShader着色器，用于拷贝渲染结果
-            effectCopy.renderToScreen = true;
-            // THREE.BloomPass(strength, kernelSize, sigma, Resolution)
-            // strength 定义泛光效果的强度，值越高，明亮的区域越明亮，而且渗入较暗区域的也就越多
-            // kernelSize 控制泛光的偏移量
-            // sigma 控制泛光的锐利程度，值越高，泛光越模糊
-            // Resolution 定义泛光的解析图，如果该值太低，结果的方块化就会越严重
-            // const bloomPass = new BloomPass(2, 25, 4.0, 256); //BloomPass通道效果
+            const effectCopy = new ShaderPass(CopyShader); //传入了CopyShader着色器，用于拷贝渲染结果
+            effectCopy.renderToScreen = false;
+
             //光晕
             bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4,
                 0.85);
-            bloomPass.renderToScreen = true;
+            bloomPass.renderToScreen = false;
             bloomPass.threshold = params.bloomThreshold;
             bloomPass.strength = params.bloomStrength;
             bloomPass.radius = params.bloomRadius;
@@ -447,7 +487,6 @@
 
             // 边缘发光
             scene.traverse((item) => {
-                console.log(item.name, 'item');
                 if (item.name.includes('Object_')) {
                     lightMeshs.push(item)
                     item.layers.enable(1)
@@ -456,9 +495,42 @@
 
                 }
             })
-            outlineObj(platform)
+        }
+        async function createChart() {
 
-            animate1()
+
+            return new Promise(async (resolve, reject) => {
+                initScene()
+
+                // 地面模型
+                const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100),
+                    new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, color: 0x1b5e20 }))
+                floorMesh.rotation.x -= Math.PI * 0.25;
+                floorMesh.position.set(0, -20, 0)
+                // floorMesh.rotation.set(0, -Math.PI / 2, 0)
+                // 地面接收光源
+                floorMesh.receiveShadow = true;
+
+                scene.add(floorMesh)
+                await initModal()
+                initPie()
+                addPass()
+                outlineObj(platform)
+                animate1()
+                // renderer.render(scene, camera);
+
+                resolve(true)
+            });
+
+        }
+        const loadingDom = document.getElementById('loading')
+        let progress = 0
+        loadingDom.style.display = 'block'
+        const load = await createChart();
+        console.log(load, 'load');
+        if (load) {
+            loadingDom.style.display = 'none'
+            loadingDom.innerHTML = 100;
         }
 
         function sceneAnimation() {
@@ -502,7 +574,6 @@
                 md.load(
                     url,
                     gltf => {
-                        console.log(gltf, 'gltf');
                         scene.add(gltf.scene);
                         resolve(gltf);
                     },
