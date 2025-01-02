@@ -162,14 +162,12 @@
 
 
             scene = new THREE.Scene();
-            // scene.background = new THREE.Color(0x333333);
+            scene.background = new THREE.Color(0x333333);
 
             // 辅助轴
             const axesHelper = new THREE.AxesHelper(20)
             scene.add(axesHelper)
 
-            var ambientLight = new THREE.AmbientLight('#ffffff', 0.7) // offline
-            scene.add(ambientLight)
             // renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
             renderer.setPixelRatio(window.devicePixelRatio);
@@ -185,15 +183,16 @@
             container.appendChild(stats.dom);
             controls = new OrbitControls(camera, renderer.domElement);
             clock = new THREE.Clock();
+            // 平行光
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
             dirLight.position.set(0, 100, 10);
             scene.add(dirLight);
-
+            // 点光源
             const pointLight = new THREE.PointLight(0xffffff, 1000);
             pointLight.position.set(10, 5, 10)
             // 打开点光源的投射光源功能 投影
             pointLight.castShadow = true;
-            scene.add(pointLight)
+            // scene.add(pointLight)
             // 环境光
             let light = new THREE.AmbientLight(0xffffff, 1); // soft white light
             scene.add(light);
@@ -230,6 +229,10 @@
                         console.log(model, 'model');
                         model.scale.set(12, 12, 12)
                         model.position.set(0, -16, 0)
+                        // 点光源，强度为1000，照射距离为20，
+                        const pointLight = new THREE.PointLight(0xffffff, 10000, 20, 2);
+                        pointLight.position.set(0, 28, 0)
+                        group.add(pointLight)
                         group.add(model)
                         model.traverse(function (child) {
                             if (child.isMesh) {
@@ -511,11 +514,11 @@
                 // 地面接收光源
                 floorMesh.receiveShadow = true;
 
-                scene.add(floorMesh)
+                // scene.add(floorMesh)
                 await initModal()
                 initPie()
-                addPass()
-                outlineObj(platform)
+                // addPass()
+                // outlineObj(platform)
                 animate1()
                 // renderer.render(scene, camera);
 
@@ -638,9 +641,9 @@
             camera.layers.set(0)
             group.rotation.y += 0.06;
 
-            params.bloomStrength -= 0.2
-            if (params.bloomStrength < 0) params.bloomStrength = 1
-            bloomPass.strength = params.bloomStrength;
+            // params.bloomStrength -= 0.2
+            // if (params.bloomStrength < 0) params.bloomStrength = 1
+            // bloomPass.strength = params.bloomStrength;
             renderer.render(scene, camera)
             requestAnimationFrame(animate1);
         }
