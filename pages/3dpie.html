@@ -7,10 +7,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cake</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
         #cake {
             height: 100%;
             width: 100%;
-            background-color: black;
+            background-color: #ff0000;
         }
 
         #loading {
@@ -20,26 +25,40 @@
             right: 0;
             top: 0;
             bottom: 0;
-            background-color: #000;
+            background-color: #00ff00;
             color: #fff;
 
+        }
+
+        #downloadBtn {
+            position: absolute;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 5px 15px;
+            border: 1px solid #fff;
+            right: 300px;
+            top: 0;
+            z-index: 99;
         }
     </style>
 </head>
 
 <body>
+    <div id="downloadBtn">下载</div>
     <div id="loading"> </div>
     <div id="cake"></div>
     <script type="importmap">
               {
                 "imports": {
                   "three": "../js/three.module.js",
-                  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+                  "three/addons/": "../js/jsm/"
                 }
               }
             </script>
     <script type="module">
         import * as THREE from "three";
+        import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
         import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
         import { OrbitControls } from "three/addons/controls/OrbitControls.js";
         import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
@@ -50,17 +69,31 @@
         import { CopyShader } from 'three/addons/shaders/CopyShader.js'; // 传入了CopyShader着色器，用于拷贝渲染结果
         import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
         import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js'
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
         // import { TextGeometry } from 'three/src/geometries/TextGeometry'         // import {
         //     getTextArraySprite,
         //     getDrawColors
         // } from './util.js';
-
+        const downloadBtn = document.getElementById('downloadBtn')
+        downloadBtn.addEventListener('click', function () {
+            // 创建一个超链接元素，用来下载保存数据的文件
+            const link = document.createElement('a');
+            const canvas = renderer.domElement; //获取canvas对象
+            // 通过超链接herf属性，设置要保存到文件中的数据
+            link.href = canvas.toDataURL("image/png");
+            link.download = 'threejs.png'; //下载文件名
+            link.click(); //js代码触发超链接元素a的鼠标点击事件，开始下载文件到本地
+        })
         var params = {
             exposure: 1,
             bloomStrength: 1,
             bloomThreshold: 0,
             bloomRadius: 0
+        };
+        const params1 = {
+            'dragable': false, openShadow: true, 'Blur Edges': true, 'Blend Window': 200,
+            'Light Radius': 50, 'rotationy': 0.05, 'Debug Lightmap': false
         };
         let that = {
             //颜色
@@ -100,7 +133,7 @@
                 centerZ: 1
             }
         }
-        let group = new THREE.Group(), platform, loadingManager, stats, bloomPass, bloomComposer, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
+        let group = new THREE.Group(), platform, nekomiya, floorMesh, control2, loadingManager, stats, bloomPass, bloomComposer, renderScene, lightMeshs = [], cLen = 15, colors = ['#e97407', '#2a811c', '#0074ff'], container, composer, camera, scene, clock, renderer, controls;
 
         function getCanvasTextArray(textList, fontSize) {
             const canvas = document.createElement('canvas');
@@ -162,14 +195,20 @@
 
 
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x333333);
-
+            // scene.background = new THREE.Color(0x333333);
             // 辅助轴
             const axesHelper = new THREE.AxesHelper(20)
             scene.add(axesHelper)
 
             // renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });//抗锯齿
+            renderer = new THREE.WebGLRenderer({
+                //想把canvas画布上内容下载到本地，需要设置为true
+                preserveDrawingBuffer: true,
+                antialias: true,
+                alpha: true
+            });//抗锯齿
+            // 背景透明
+            renderer.setClearAlpha(0);
             renderer.setPixelRatio(window.devicePixelRatio);
             // 很重要，不然光晕不起作用
             renderer.autoClear = false
@@ -192,7 +231,7 @@
             pointLight.position.set(10, 5, 10)
             // 打开点光源的投射光源功能 投影
             pointLight.castShadow = true;
-            // scene.add(pointLight)
+            scene.add(pointLight)
             // 环境光
             let light = new THREE.AmbientLight(0xffffff, 1); // soft white light
             scene.add(light);
@@ -230,10 +269,25 @@
                         model.scale.set(12, 12, 12)
                         model.position.set(0, -16, 0)
                         // 点光源，强度为1000，照射距离为20，
-                        const pointLight = new THREE.PointLight(0xffffff, 10000, 20, 2);
-                        pointLight.position.set(0, 28, 0)
+                        const pointLight = new THREE.PointLight(0xffffff, 500, 20, 2);
+                        pointLight.position.set(0, 58, 20)
+                        // 打开点光源的投射光源功能 投影
+                        pointLight.castShadow = true
                         group.add(pointLight)
                         group.add(model)
+
+
+                        control2 = new TransformControls(camera, renderer.domElement);
+                        control2.addEventListener('dragging-changed', (event) => {
+
+                            controls.enabled = !event.value;
+
+                        });
+                        control2.attach(group);
+
+                        scene.add(control2);
+
+
                         model.traverse(function (child) {
                             if (child.isMesh) {
                                 // 投影
@@ -256,6 +310,31 @@
                     }
                 );
 
+
+                loader.load(
+                    "../static/gltf/nekomiya.gltf",
+                    gltf => {
+                        nekomiya = gltf
+                        const model = nekomiya.scene;
+                        console.log(model, 'model');
+                        model.scale.set(40, 40, 40)
+                        // model.position.set(0, -16, 0)
+                        model.position.y = 5
+                        group.add(model)
+
+                        model.traverse(function (child) {
+                            if (child.isMesh) {
+                                // 投影
+                                child.castShadow = true;
+                            }
+                        });
+                    },
+                    undefined,
+                    function (error) {
+                        console.error(error);
+                        reject()
+                    }
+                );
             });
 
 
@@ -309,8 +388,9 @@
             let allHeight = maxHeight - baseHeight;
             let axis = new THREE.Vector3(1, 0, 0);
 
-
+            group.name = 'selfGroup'
             scene.add(group);
+            console.log(group, 'grop');
 
             for (let idx = 0; idx < that.data.length; idx++) {
                 let objGroup = new THREE.Group();
@@ -487,7 +567,8 @@
             bloomComposer.addPass(bloomPass);
             bloomComposer.addPass(effectCopy);
             bloomComposer.render()
-
+            container.style.background = 'red'
+            renderer.setClearAlpha(0);
             // 边缘发光
             scene.traverse((item) => {
                 if (item.name.includes('Object_')) {
@@ -506,19 +587,20 @@
                 initScene()
 
                 // 地面模型
-                const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100),
-                    new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, color: 0x1b5e20 }))
+                floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000),
+                    new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, color: 0x1b5e20, transparent: true, opacity: 0.6 }))
                 floorMesh.rotation.x -= Math.PI * 0.25;
-                floorMesh.position.set(0, -20, 0)
+                floorMesh.position.set(0, -130, 0)
                 // floorMesh.rotation.set(0, -Math.PI / 2, 0)
                 // 地面接收光源
                 floorMesh.receiveShadow = true;
 
-                // scene.add(floorMesh)
+                scene.add(floorMesh)
                 await initModal()
                 initPie()
-                // addPass()
-                // outlineObj(platform)
+                createGUI()
+                addPass()
+                outlineObj(platform)
                 animate1()
                 // renderer.render(scene, camera);
 
@@ -608,7 +690,8 @@
             outlinePass.clear = true
             bloomComposer.addPass(outlinePass) // 加入高光特效
             outlinePass.selectedObjects = lightMeshs // 需要高光的模型
-
+            container.style.background = 'red'
+            renderer.setClearAlpha(0);
             renderer.render(scene, camera);
         }
 
@@ -639,14 +722,92 @@
             // 清除深度缓存
             renderer.clearDepth()
             camera.layers.set(0)
-            group.rotation.y += 0.06;
 
-            // params.bloomStrength -= 0.2
-            // if (params.bloomStrength < 0) params.bloomStrength = 1
-            // bloomPass.strength = params.bloomStrength;
+            group.rotation.y += params1.rotationy;
+
+            params.bloomStrength -= 0.2
+            if (params.bloomStrength < 0) params.bloomStrength = 1
+            bloomPass.strength = params.bloomStrength;
+
+            if (params1.dragable) {
+                control2.visible = true
+            } else {
+                control2.visible = false
+            }
+            if (params1.openShadow) {
+                floorMesh.receiveShadow = true
+            } else {
+                floorMesh.receiveShadow = false
+            }
             renderer.render(scene, camera)
+            console.log(container);
+            container.style.background = 'red'
+            renderer.setClearAlpha(0);
             requestAnimationFrame(animate1);
         }
+
+
+        function createGUI() {
+
+            const gui = new GUI({ title: 'Accumulation Settings' });
+            gui.add(params1, 'dragable');
+            gui.add(params1, 'openShadow');
+            gui.add(params1, 'rotationy', 0, 0.8).step(0.01);
+        }
+
+
+
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        function onClick(event) {
+            // 将浏览器的2D鼠标位置转换为3D空间的raycaster
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            // 使用鼠标位置和当前相机来更新射线投射器
+            raycaster.setFromCamera(mouse, camera);
+            // 计算物体和鼠标交点
+            const intersects = raycaster.intersectObjects(scene.children);
+            console.log(event, intersects);
+            let rack;
+            // // 如果有交点，则高亮显示
+            if (intersects.length > 0) {
+                //   // 取第一个交点的物体（最接近的物体）
+                const intersect = intersects[0];
+                const floorInfo = intersect.object.userData;
+                // 输出物体的名字、ID、指针等信息
+                console.log(intersect.object);
+                rack = findParent(intersect.object, checkIsRack);
+                if (rack) {
+                    control2.attach(rack);
+                }
+            }
+        }
+
+        function findParent(object3d, callback) {
+            let parent = object3d;
+            while (!callback(parent)) {
+                parent = parent.parent;
+                if (parent === null) {
+                    return null;
+                }
+            }
+            return parent;
+        }
+
+        function checkNameIncludes(obj, str) {
+            if (obj.name.includes(str) || obj.name.includes("nekomiya")) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        function checkIsRack(obj) {
+            return checkNameIncludes(obj, 'selfGroup');
+        }
+
+        // 监听鼠标移动事件
+        document.addEventListener('click', onClick, false);
     </script>
 </body>
 
