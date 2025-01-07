@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width" />
+    <link href="../css/reset.css" rel="stylesheet" />
+    <title>test gl-layers</title>
+    <style>
+        body,
+        html {
+            height: 100%;
+            color: #222;
+        }
+
+        #per {
+            background: #008cff;
+            line-height: 24px;
+            height: 24px;
+            color: #fff;
+        }
+
+        .container {
+            height: 100%;
+        }
+
+        #tag-container {
+            width: 100px;
+            height: 20px;
+            background: #206bfa;
+            position: absolute;
+            left: 10000px;
+        }
+
+        #tag {
+            /* display: none; */
+        }
+
+        #close {
+            position: absolute;
+            top: 2px;
+            cursor: pointer;
+            right: 10px;
+        }
+
+        .line {
+            height: 50px;
+            width: 2px;
+            position: absolute;
+            left: 50%;
+            bottom: -50px;
+            background: #206bfa;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="per"></div>
+    <div id="tag-container">
+
+        <div id="tag">fefe</div>
+        <div id="close">X</div>
+        <div class="line"></div>
+    </div>
+    <div id="container" class="container"></div>
+
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../js/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+    <script src="../js/axios.min.js"></script>
+
+    <script type="module">
+        import * as THREE from "three";
+
+        import Stats from "three/addons/libs/stats.module.js";
+        import { GUI } from "three/addons/libs/lil-gui.module.min.js";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        import { CSS2DObject, CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+        import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+        import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+        import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+
+
+        let container, gui, stats, chooseObj, platform, divDom, lightMeshs = [], css2Renderer, outlinePass, bloomComposer;
+        let camera, scene, renderer, model, controls, tag, tagDom;
+        let group = new THREE.Group()
+        init();
+        async function init() {
+            container = document.getElementById("container");
+
+            camera = new THREE.PerspectiveCamera(
+                45,
+                window.innerWidth / window.innerHeight,
+                0.25,
+                600
+            );
+            camera.position.set(-180, 108, 360);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xaaaaaa);
+
+            // 3D场景渲染器
+            renderer = new THREE.WebGLRenderer({
+                //想把canvas画布上内容下载到本地，需要设置为true
+                preserveDrawingBuffer: true,
+                // 设置对数深度缓冲区，优化深度冲突问题
+                logarithmicDepthBuffer: true,
+                alpha: true,//透明
+                antialias: true//抗锯齿
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0xffffff, 1);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
+
+            // lights
+            // 半球光
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+            hemiLight.position.set(0, 100, 0);
+            scene.add(hemiLight);
+            // // 直射光，可以理解为手电筒
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(0, 100, 10);
+            scene.add(dirLight);
+
+            // 创建一个CSS2渲染器CSS2DRenderer,添加标签
+            css2Renderer = new CSS2DRenderer();
+            css2Renderer.render(scene, camera);
+            css2Renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(css2Renderer.domElement);
+            css2Renderer.domElement.style.pointerEvents = 'none';
+            // 改变canvas画布在网页位置，标签父元素也要重新定位
+            css2Renderer.domElement.style.position = 'absolute';
+            css2Renderer.domElement.style.top = '0px';
+
+            // 辅助轴
+            const axesHelper = new THREE.AxesHelper(30)
+            scene.add(axesHelper)
+            initMesh()
+            initModal()
+            initOutLine()
+            animate2()
+        }
+        function initModal() {
+            divDom = document.getElementById('tag-container');
+            tagDom = document.getElementById('tag');
+            let percentDiv = document.getElementById("per");// 获取进度条元素
+
+            // 创建LoadingManager实例
+            let loadingManager = new THREE.LoadingManager();
+
+            // 定义进度更新的回调函数
+            loadingManager.onLoad = function () {
+                console.log('所有模型加载完成');
+                percentDiv.innerHTML = '所有模型加载完成'
+                divDom.style.left = '0px';
+            };
+
+            loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
+                console.log(`加载进度: ${Math.round(itemsLoaded / itemsTotal * 100)}%`);
+                percentDiv.innerHTML = `加载进度: ${Math.round(itemsLoaded / itemsTotal * 100)}%`;
+                // document.getElementById('tag-container').style.position.left = '1000px'
+
+            };
+
+            loadingManager.onError = function (url) {
+                console.error('模型加载出错:', url);
+                percentDiv.innerHTML = '模型加载出错'
+            };
+            const loader = new GLTFLoader(loadingManager);
+            loader.load(
+                "../static/gltf/platform/scene.gltf",
+                gltf => {
+                    platform = gltf
+                    const model = platform.scene;
+                    console.log(model, 'model');
+                    model.scale.set(12, 12, 12)
+                    model.position.set(0, -26, 0)
+
+                    tag = new CSS2DObject(divDom);
+                    // const obj = gltf.scene.getObjectByName('设备A');
+                    const obj = model.getObjectByName("Object_4");
+                    //标签tag作为obj子对象，默认标注在工厂设备obj的局部坐标系坐标原点
+
+                    console.log(obj);
+                    obj.add(tag);
+                    group.add(model)
+                    scene.add(group)
+                    // 边缘发光
+                    scene.traverse((item) => {
+                        if (item.name.includes('Object_')) {
+                            lightMeshs.push(item)
+                        }
+                    })
+                },
+                undefined,
+                function (error) {
+                    console.error(error);
+
+                }
+            );
+
+        }
+
+        function initMesh() {
+            // 几何平面
+            const geometry = new THREE.PlaneGeometry(50, 50);
+            // 漫反射材质
+            const material = new THREE.MeshLambertMaterial({
+                color: 0x00ffff,
+                side: THREE.DoubleSide
+            })
+            const mesh = new THREE.Mesh(geometry, material)
+
+            const geometry2 = new THREE.PlaneGeometry(30, 30);
+            const material2 = new THREE.MeshLambertMaterial({
+                color: 0xff0000,
+                side: THREE.DoubleSide
+            })
+            const mesh2 = new THREE.Mesh(geometry2, material2)
+            mesh.position.set(0, 30, -1)
+            mesh.name = 'mesh'
+            mesh2.name = 'mesh2'
+            mesh2.position.set(0, -50, 0)
+            scene.add(mesh)
+            scene.add(mesh2)
+
+        }
+
+        function initOutLine() {
+            bloomComposer = new EffectComposer(renderer)
+            // RenderPass这个通道会渲染场景，但不会将渲染结果输出到屏幕上
+            const renderScene = new RenderPass(scene, camera)
+            bloomComposer.setSize(window.innerWidth, window.innerHeight);
+            bloomComposer.addPass(renderScene);
+            // 物体边缘发光通道
+            outlinePass = new OutlinePass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                scene,
+                camera,
+            )
+
+            outlinePass.edgeStrength = 5.0 // 高光边缘边框的亮度
+            outlinePass.edgeGlow = 1 // 光晕[0,1]  边缘微光强度
+            outlinePass.usePatternTexture = false // 是否使用父级的材质，纹理覆盖
+            outlinePass.edgeThickness = 4 // 边框宽度，高光厚度
+            outlinePass.downSampleRatio = 1 // 边框弯曲度
+            outlinePass.pulsePeriod = 1 // 呼吸闪烁的速度，数值越大，律动越慢
+            outlinePass.visibleEdgeColor.set(parseInt(0x00ff00)) // 呼吸显示的颜色
+            outlinePass.hiddenEdgeColor = new THREE.Color(1, 0, 0) // 呼吸消失的颜色
+            // outlinePass.clear = true
+            bloomComposer.addPass(outlinePass) // 加入高光特效
+            outlinePass.selectedObjects = lightMeshs // 需要高光的模型
+            renderer.setClearAlpha(0);
+            renderer.render(scene, camera);
+        }
+
+        function animate2() {
+            // renderer.render(scene, camera);
+            css2Renderer.render(scene, camera);
+            bloomComposer.render()
+            requestAnimationFrame(animate2)
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            css2Renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function findParent(object3d, callback) {
+            let parent = object3d;
+            while (!callback(parent)) {
+                parent = parent.parent;
+                if (parent === null) {
+                    return null;
+                }
+            }
+            return parent;
+        }
+        function checkNameIncludes(obj, str) {
+            console.log(obj, 'obj');
+            if (obj.name.includes(str) || obj.name.includes('Object_7') || obj.name.includes("Object_6") || obj.name.includes('Object_5') || obj.name.includes('Object_4')) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        function checkIsRack(obj) {
+            return checkNameIncludes(obj, 'mesh');
+        }
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        function onClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            // 使用鼠标位置和当前相机来更新射线投射器
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children);
+            console.log(intersects, 'intersects');
+            if (intersects.length > 0) {
+                console.log(intersects[0].object.parent);
+                // 通过.ancestors属性判断那个模型对象被选中了
+                // outlinePass.selectedObjects = [intersects[0].object];
+                //tag会标注在intersects[0].object.ancestors模型的局部坐标系原点位置
+                let rack = findParent(intersects[0].object, checkIsRack);
+                console.log(rack.position, 'rack');
+                if (rack) {
+                    outlinePass.selectedObjects = [rack]
+                    tagDom.style.display = 'block'
+                    tagDom.innerHTML = intersects[0].object.name;//修改标签数据
+
+                    tag.position.copy(rack.position);
+                    rack.add(tag);
+
+                    chooseObj = intersects[0].object;
+                }
+
+
+            } else {
+                if (chooseObj) {//把原来选中模型对应的标签和发光描边隐藏
+                    outlinePass.selectedObjects = [];//无发光描边
+                    chooseObj.remove(tag);//从场景移除
+                }
+            }
+        }
+        document.getElementById('close').addEventListener('click', function () {
+            if (chooseObj) {//把原来选中模型对应的标签和发光描边隐藏
+                outlinePass.selectedObjects = []; //无发光描边
+                chooseObj.remove(tag); //从场景移除
+            }
+        })
+        window.addEventListener('resize', onWindowResize, false);
+
+        // 监听鼠标移动事件
+        document.addEventListener('click', onClick, false);
+    </script>
+</body>
+
+</html>

@@ -239,8 +239,6 @@
         function initModal() {
             return new Promise((resolve, reject) => {
 
-
-
                 // 创建LoadingManager实例
                 loadingManager = new THREE.LoadingManager();
 
@@ -341,16 +339,6 @@
 
         }
 
-        function onModelProgress(progressEvent) {
-            const { loaded, total, lengthComputable } = progressEvent
-            //lengthComputable  true 可以获取到当前文件的总字节大小
-            if (lengthComputable) {
-                const progress = loaded / total * 100
-                console.log(progress + '% loaded')
-            } else {
-                console.log('已加载' + loaded + '字节')
-            }
-        }
 
         function initPie() {
             if (that.data.length == 0) {
@@ -603,7 +591,6 @@
                 outlineObj(platform)
                 animate1()
                 // renderer.render(scene, camera);
-
                 resolve(true)
             });
 
@@ -617,6 +604,7 @@
             loadingDom.style.display = 'none'
             loadingDom.innerHTML = 100;
         }
+
 
         function sceneAnimation() {
             let glowMaterialList = [], materials
