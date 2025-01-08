@@ -63,10 +63,26 @@
             bottom: -50px;
             background: #206bfa;
         }
+
+        .pos {
+            overflow: hidden;
+        }
+
+        .button {
+            float: left;
+            margin-right: 10px;
+            border: 1px solid #206bfa;
+            color: #333;
+        }
     </style>
 </head>
 
 <body>
+    <div class="pos">
+        <div id="A" class="button">dim_4_3</div>
+        <div id="B" class="button">neft008_49</div>
+        <div id="all" class="button">整体</div>
+    </div>
     <div id="per"></div>
     <div id="tag-container" style="display: none;">
         <img src="../static/image/pointer.png" alt="">
@@ -101,11 +117,14 @@
         import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
         import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
         import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+        import * as TWEEN from 'https://unpkg.com/@tweenjs/tween.js@23.1.3/dist/tween.esm.js'
 
 
         let container, gui, stats, chooseObj, platform, lightMeshs = [], css3Renderer, outlinePass, bloomComposer;
-        let camera, scene, renderer, model, controls, spriteInfo, spriteWarning;
-        let group = new THREE.Group()
+        let camera, scene, renderer, model, controls, spriteInfo, spriteWarning, TWIdx, TWIdx1;
+        let group = new THREE.Group();
+        const clock = new THREE.Clock();
+
         init();
         async function init() {
             container = document.getElementById("container");
@@ -166,7 +185,7 @@
             initOutLine()
             animate2()
         }
-        const arr = ['porshen001_33', "truba_1_22", "stancia_21", "benz_7", "dim_4_3"];
+        const arr = ['porshen001_33', "neft008_49", "benz_7", "dim_4_3"];
         function initModal() {
             let percentDiv = document.getElementById("per");// 获取进度条元素
 
@@ -239,7 +258,7 @@
                     spriteWarning.position.y = 5 / 2;//标签底部箭头和空对象标注点重合  
                     // obj是建模软件中创建的一个空对象
                     const objInfo = gltf.scene.getObjectByName('dim_4_3');
-                    const objWarning = gltf.scene.getObjectByName('truba_1_22');
+                    const objWarning = gltf.scene.getObjectByName('neft008_49');
                     //tag会标注在空对象obj对应的位置
                     spriteInfo.scale.set(1.5, 1.5, 1.5)
                     spriteWarning.scale.set(1.5, 1.5, 1.5)
@@ -247,12 +266,30 @@
                     objWarning.add(spriteWarning);
                     // group.add(model)
                     scene.add(model)
+
+
                     // 边缘发光
                     scene.traverse((child) => {
                         if (child.isMesh) {
                             // 加载模型后，整个场景变黑了 失去了模型自身的材料
                             child.material.emissive = child.material.color;
                             child.material.emissiveMap = child.material.map;
+
+                            // 模型淡入
+                            child.material.transparent = true;//开启透明计算
+                            child.material.opacity = 0.0;//完全透明
+
+                            console.log(child.material.opacity, 'opa');
+                            new TWEEN.Tween({ opacity: child.material.opacity })
+                                .to({ opacity: 1.0 }, 3000)
+                                .onStart(function () {
+                                    //动画开始：允许透明opacity属性才能生效
+                                    child.material.transparent = true;
+                                })
+                                .onUpdate(function (obj) {
+                                    child.material.opacity = obj.opacity
+                                })
+                                .start();
                         }
                     })
                 },
@@ -293,7 +330,6 @@
             renderer.setClearAlpha(0);
             renderer.render(scene, camera);
         }
-        const clock = new THREE.Clock();
         const animationDuration = 2; // 动画持续时间（秒）
         const startOpacity = 1; // 初始透明度
         const endOpacity = 0.5; // 结束透明度
@@ -316,6 +352,7 @@
                     spriteInfo.material.opacity = 1
                 }
             }
+            TWEEN.update()
 
             bloomComposer.render()
             requestAnimationFrame(animate2)
@@ -385,6 +422,13 @@
                 // }
 
 
+                const pos = new THREE.Vector3();
+                //获取三维场景中某个对象世界坐标
+                platform.scene.getObjectByName(intersects[0].object.parent.name).getWorldPosition(pos);
+                // 相机飞行到的位置和观察目标拉开一定的距离
+                const pos2 = pos.clone().addScalar(50);
+                // 相机从当前位置camera.position飞行三维场景中某个世界坐标附近
+                createCameraTween(pos2, pos)
             } else {
                 if (chooseObj) {//把原来选中模型对应的标签和发光描边隐藏
                     // outlinePass.selectedObjects = [];//无发光描边
@@ -403,6 +447,81 @@
 
         // 监听鼠标移动事件
         document.addEventListener('click', onClick, false);
+
+
+
+
+
+        // 切换到社保dim_4_3预览状态
+        document.getElementById('A').addEventListener('click', function () {
+            const A = platform.scene.getObjectByName('dim_4_3');
+            const pos = new THREE.Vector3();
+            A.getWorldPosition(pos); //获取三维场景中某个对象的世界坐标
+            // 相机飞行到的位置和观察目标拉开一定距离；
+            const pos2 = pos.clone().addScalar(50);//向量的x、y、z坐标分别在pos基础上增加30
+            // 相机从当前位置camera.position飞行三维场景中某个世界坐标附近
+            console.log(pos2.x, pos.x, 'x');
+            createCameraTween(pos2, pos)
+        })
+        // 切换到benz_7的预览状态
+        document.getElementById('B').addEventListener('click', function () {
+            const B = platform.scene.getObjectByName('neft008_49');
+            const pos = new THREE.Vector3();
+            B.getWorldPosition(pos); //获取三维场景中某个对象世界坐标
+            // 相机飞行到的位置和观察目标拉开一定的距离
+            const pos2 = pos.clone().addScalar(40);
+            // 相机从当前位置camera.position飞行三维场景中某个世界坐标附近
+            createCameraTween(pos2, pos)
+        })
+        // 切换到整体预览
+        // 相机整体预览对应的位置和观察目标
+        const cameraPos0 = new THREE.Vector3(-180, 108, 130)
+        const target0 = new THREE.Vector3(0, 0, 0);
+        // 切换整体预览状态
+        document.getElementById('all').addEventListener('click', function () {
+            // 相机从当前位置camera.position回到整体预览状态
+            createCameraTween(cameraPos0, target0)
+        })
+
+
+        // 相机动画函数，从A点飞行到B点，A点表示相机当前所处状态
+        // pos: 三维向量Vector3，表示动画结束相机位置
+        // target: 三维向量Vector3，表示相机动画结束lookAt指向的目标观察点
+        function createCameraTween(endPos, endTarget) {
+            new TWEEN.Tween({
+                // 不管相机此刻处于什么状态，直接读取当前的位置和目标观察点
+                x: camera.position.x,
+                y: camera.position.y,
+                z: camera.position.z,
+                tx: controls.target.x,
+                ty: controls.target.y,
+                tz: controls.target.z,
+            })
+                .to({
+                    // 动画结束相机位置坐标
+                    x: endPos.x,
+                    y: endPos.y,
+                    z: endPos.z,
+                    // 动画结束相机指向的目标观察点
+                    tx: endTarget.x,
+                    ty: endTarget.y,
+                    tz: endTarget.z,
+                }, 2000)
+                .onUpdate(function (obj) {
+                    // 动态改变相机位置
+                    camera.position.set(obj.x, obj.y, obj.z);
+                    // 动态计算相机视线
+                    // camera.lookAt(obj.tx, obj.ty, obj.tz);
+                    controls.target.set(obj.tx, obj.ty, obj.tz);
+                    controls.update();//内部会执行.lookAt()
+                }).onComplete(function (obj) {
+                    //   在complete中执行control.updata,或者在update方法中执行control.updata,这样就不用设置camera.lookAt方法了
+                    // controls.target.set(obj.tx, obj.ty, obj.tz);
+                    // controls.update();
+                    console.log(controls.target);
+                })
+                .start().easing(TWEEN.Easing.Quadratic.Out);//使用二次缓动函数;
+        }
     </script>
 </body>
 
