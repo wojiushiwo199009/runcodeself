@@ -97,7 +97,7 @@
         let modelMoveName = null;
         let modelSelectName = null
         let layer, tiemen = {};
-        let curve, curve1, che, uav;
+        let curve, curve1, che, uav, TWIdx1, TWIdx2;
         let tooltipDom = document.getElementsByClassName('tooltip')[0]
         // 图层管理
         initDemo();
@@ -418,7 +418,7 @@
                     console.log(child, model, 'child');
                     const params = MODEL_EQUIPMENT_POSITION_PARAMS_ENUM[child.name]
 
-                    let TWIdx = new Tween(child.position)
+                    TWIdx1 = new Tween(child.position)
                         .to(params.COMPOSE, 2000)
                         .easing(Easing.Quadratic.Out)
                         .onUpdate((object) => {
@@ -435,11 +435,8 @@
 
                         })
                         .start()
-                    function animate2(time) {
-                        TWIdx.update(time)
-                        requestAnimationFrame(animate2)
-                    }
-                    requestAnimationFrame(animate2)
+                    // 执行方法update写在了animate2方法里面，不然不执行，很重要！！！
+
 
                 })
             }
@@ -448,7 +445,7 @@
                     console.log(child, model, 'child');
                     const params = MODEL_EQUIPMENT_POSITION_PARAMS_ENUM[child.name]
 
-                    let TWIdx = new Tween(child.position)
+                    TWIdx2 = new Tween(child.position)
                         .to(params.DECOMPOSE, 2000)
                         .easing(Easing.Quadratic.Out)
                         .onUpdate((object) => {
@@ -464,11 +461,7 @@
                             heatmap.visible = false
                         })
                         .start()
-                    function animate2(time) {
-                        TWIdx.update(time)
-                        requestAnimationFrame(animate2)
-                    }
-                    requestAnimationFrame(animate2)
+                    // 执行方法update写在了animate2方法里面，不然不执行，很重要！！！
 
                 })
             }
@@ -598,6 +591,13 @@
             requestAnimationFrame(animate1)
             const delta = clock.getDelta();
             mixer3.update(delta);
+            // 执行tween动画，很重要
+            if (TWIdx1) {
+                TWIdx1.update()
+            }
+            if (TWIdx2) {
+                TWIdx2.update()
+            }
             moveOnCurve()
             moveOnCurve1()
 
