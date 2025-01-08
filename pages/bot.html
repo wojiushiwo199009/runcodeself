@@ -22,10 +22,22 @@
       margin-right: auto;
       padding: 0 2em;
     }
+
+    .bu {
+      position: absolute;
+      left: 200px;
+    }
+
+    #play {
+      position: absolute;
+      left: 300px;
+    }
   </style>
 </head>
 
 <body>
+  <div id="stop" class="bu">停止</div>
+  <div id="play" class="bu" style="margin-left: 10px;">播放</div>
   <div id="container" class="container"></div>
 
   <div class="toolbar">
@@ -57,7 +69,7 @@
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
     let container,
-      cube,
+      cube, clipAction,
       gui, activeAction, previousAction,
       stats,
       clock,
@@ -120,12 +132,14 @@
       const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
       // 创建立方体网格
       cube = new THREE.Mesh(geometry, material);
-
+      cube.name = 'Box'
       cube.position.set(-10, 0, 0)
       scene.add(cube);
+
+
       // model
       const loader1 = new GLTFLoader();
-      p3 = await loadGLTF(loader1, "../static/gltf/Parrot.glb",);
+      p3 = await loadGLTF(loader1, "../static/gltf/Stork.glb",);
       console.log(p3, 'load');
       const size1 = 0.1
 
@@ -135,6 +149,9 @@
 
       p1 = await loadFile(loader, "../static/gltf/xiaoz.fbx");
       console.log(p1, 'p1');
+      // 骨骼动画创建
+      const skeletonHelper = new THREE.SkeletonHelper(p1);
+      scene.add(skeletonHelper);
       const size = 0.05
       p1.scale.set(size, size, size);
 
@@ -159,8 +176,11 @@
       container.appendChild(stats.dom);
       // 动画
       mixer1 = new THREE.AnimationMixer(p3.scene);
-      mixer1.clipAction(p3.animations[0]).play();
-
+      clipAction = mixer1.clipAction(p3.animations[0]);
+      clipAction.play()
+      //不循环播放
+      // clipAction.loop = THREE.LoopOnce; 
+      clipAction.timeScale = 0.2
       // 动画
       mixer2 = new THREE.AnimationMixer(p1);
       createGUI(p1, p1.animations)
@@ -174,7 +194,9 @@
       model.position.set(1, 1, 10);
       model.scale.set(0.5, 0.5, 0.5);
       scene.add(model);
-
+      // 骨骼动画创建
+      const skeletonHelper4 = new THREE.SkeletonHelper(p4.scene);
+      scene.add(skeletonHelper4);
       // 动画
       mixer3 = new THREE.AnimationMixer(p4.scene);
       mixer3.clipAction(p4.animations[0]).play();
@@ -237,8 +259,13 @@
       if (mixer2) {
         mixer2.update(dt);
       }
-      p3.scene.rotation.y += 0.06;
-      cube.rotation.x += 0.5;
+      // p3.scene.rotation.y += 0.06;
+      // cube.rotation.x += 0.5;
+
+      const delta = clock1.getDelta();
+      mixer1.update(delta);
+      mixer2.update(delta);
+
 
       if (controls) {
         controls.update();
@@ -266,7 +293,15 @@
       }
       const statesFolder = gui.addFolder('States');
       const clipCtrl = statesFolder.add(api, 'state').options(states)
-
+      const duration = p3.animations[0].duration;//默认持续时间
+      //  动画播放倍速  step为步长
+      gui.add(clipAction, 'timeScale', 0, 6).step(0.1)
+      gui.add(clipAction, 'time', 0, duration).step(0.1).name('拖动').onChange(function () {
+        //如果动画处于播放状态会影响拖动条时间定位
+        if (!clipAction.paused) {
+          clipAction.paused = true; //切换为暂停状态
+        }
+      });
       let idx = 0
       setInterval(() => {
         //  clipCtrl.onChange(() => {
@@ -310,7 +345,14 @@
 
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
-
+    document.getElementById('stop').addEventListener('click', function () {
+      // clipAction.stop();//动画停止结束，回到开始状态
+      clipAction.paused = true; //切换为暂停状态
+    })
+    document.getElementById('play').addEventListener('click', function () {
+      // clipAction.play();//重新开始播放动画
+      clipAction.paused = false; //切换为播放状态
+    })
   </script>
 </body>
 
