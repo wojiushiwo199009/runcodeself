@@ -445,14 +445,14 @@
         window.addEventListener('resize', onWindowResize, false);
 
 
-        // 监听鼠标移动事件
+        // 监听鼠标点击事件
         document.addEventListener('click', onClick, false);
 
 
 
 
 
-        // 切换到社保dim_4_3预览状态
+        // 切换到设备dim_4_3预览状态
         document.getElementById('A').addEventListener('click', function () {
             const A = platform.scene.getObjectByName('dim_4_3');
             const pos = new THREE.Vector3();

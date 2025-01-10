@@ -180,12 +180,11 @@
       clipAction.play()
       //不循环播放
       // clipAction.loop = THREE.LoopOnce; 
-      clipAction.timeScale = 0.2
+      clipAction.timeScale = 0.2 //动画播放倍速
       // 动画
       mixer2 = new THREE.AnimationMixer(p1);
       createGUI(p1, p1.animations)
       renderer.setAnimationLoop(animate1);
-
       // mixer2.clipAction(p1.animations[4]).play();
 
 
@@ -199,7 +198,7 @@
       scene.add(skeletonHelper4);
       // 动画
       mixer3 = new THREE.AnimationMixer(p4.scene);
-      mixer3.clipAction(p4.animations[0]).play();
+      mixer3.clipAction(p4.animations[10]).play();
 
       // animate1();
       // animate2()
@@ -262,9 +261,10 @@
       // p3.scene.rotation.y += 0.06;
       // cube.rotation.x += 0.5;
 
-      const delta = clock1.getDelta();
-      mixer1.update(delta);
-      mixer2.update(delta);
+      mixer1.update(dt);
+      if (mixer3) {
+        mixer3.update(dt);
+      }
 
 
       if (controls) {
