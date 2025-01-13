@@ -1,0 +1,11 @@
+Model Information:
+* title:	Koenigsegg Jesko Draco Red 2020
+* source:	https://sketchfab.com/3d-models/koenigsegg-jesko-draco-red-2020-e115ce7ae66a425c88f52df9f15ccc1d
+* author:	MdMahib (https://sketchfab.com/MdMahib)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Koenigsegg Jesko Draco Red 2020" (https://sketchfab.com/3d-models/koenigsegg-jesko-draco-red-2020-e115ce7ae66a425c88f52df9f15ccc1d) by MdMahib (https://sketchfab.com/MdMahib) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
