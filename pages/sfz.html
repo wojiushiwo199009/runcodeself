@@ -130,6 +130,8 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setClearColor(0xffffff, 1);
             renderer.setSize(window.innerWidth, window.innerHeight);
+            //   投影
+            renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
             controls = new OrbitControls(camera, renderer.domElement);
             controls.maxPolarAngle = THREE.MathUtils.degToRad(90);
@@ -138,10 +140,18 @@
             const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
             hemiLight.position.set(0, 100, 0);
             scene.add(hemiLight);
-            // // 直射光，可以理解为手电筒
+            // // 平行光
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
             dirLight.position.set(0, 100, 10);
             scene.add(dirLight);
+
+
+            // 点光源
+            const pointLight = new THREE.PointLight(0xffffff, 100000);
+            pointLight.position.set(300, 120, 10)
+            // 打开点光源的投射光源功能 投影
+            pointLight.castShadow = true;
+            scene.add(pointLight)
 
             // 辅助轴
             const axesHelper = new THREE.AxesHelper(30)
@@ -173,8 +183,8 @@
         function initModal() {
             console.log(new Date().getTime());
             initGas()
-            // initTree()
-            // initWoman()
+            initTree()
+            initWoman()
             initCar()
             console.log(new Date().getTime());
         }
@@ -182,6 +192,9 @@
             // model
             gas = await loadGLTF(loader, "../static/gltf/sfz/red-gas/small_red_gas_station.glb");
             gas.scene.name = 'gas'
+            // 接收投影
+            gas.scene.getObjectByName('Plane_asphalt_0').receiveShadow = true;
+            gas.scene.getObjectByName('Plane').receiveShadow = true;
             gas.scene.position.set(0, 0, 0);
             gas.scene.scale.set(10, 15, 10);
             // gas.scene.rotation.y = Math.PI / 6
@@ -190,12 +203,18 @@
             // model
             tree1 = await loadGLTF(loader, "../static/gltf/sfz/tree1/scene.gltf");
             tree1.scene.name = 'tree1号'
-            tree1.scene.position.set(230, 0, 0);
+            tree1.scene.position.set(200, 0, 0);
             tree1.scene.scale.set(5, 5, 5);
-            cloneModel(tree1.scene, 230, 0, -100, 2)
-            cloneModel(tree1.scene, 230, 0, -50, 3)
-            cloneModel(tree1.scene, 230, 0, 50, 4)
-            cloneModel(tree1.scene, 230, 0, 100, 5)
+            tree1.scene.traverse((child) => {
+                if (child.isMesh) {
+                    // 投影 发生投影
+                    child.castShadow = true;
+                }
+            })
+            cloneModel(tree1.scene, 200, 0, -100, 2)
+            cloneModel(tree1.scene, 200, 0, 100, 3)
+            // cloneModel(tree1.scene, 200, 0, 50, 4)
+            // cloneModel(tree1.scene, 200, 0, 100, 5)
         }
         async function initWoman() {
             // model
@@ -226,7 +245,7 @@
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
             const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
             const curveObject = new THREE.Line(geometry, material)
-            scene.add(curveObject)
+            // scene.add(curveObject)
 
         }
         async function initCar() {
@@ -330,7 +349,7 @@
             const geometry3 = new THREE.BufferGeometry().setFromPoints(points3);
             const material3 = new THREE.LineBasicMaterial({ color: 0xff0000 });
             const curveObject3 = new THREE.Line(geometry3, material3)
-            scene.add(curveObject3)
+            // scene.add(curveObject3)
 
         }
         function animate2() {
@@ -435,10 +454,37 @@
                         console.log(point, pointBox, 'point');
                         // 视觉跟随车子运动
                         // if (progress <= 0.3) {
-                        camera.position.set(point.x, point.y + 28, point.z)
-                        camera.lookAt(pointBox.x, pointBox.y + 28, pointBox.z)
+
+                        // (180, 58, 380);
+                        // (-180, 0, -30);
+                        // setAnimationCamera(
+                        //     { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0.5, oz: 0 },
+                        //     { cx: -175, cy: 12, cz: -36.5, ox: 0, oy: 0.5, oz: -3 },
+                        //     true
+                        // );
+                        if (progress <= 0.3) {
+                            console.log('前进');
+                            camera.position.set(point.x, point.y + 14, point.z - 10)
+                            camera.lookAt(pointBox.x, pointBox.y + 14, pointBox.z)
+                            controls.target.set(pointBox.x, pointBox.y + 14, pointBox.z) //非必要，场景有控件时才加上
+
+                        }
+                        if (progress > 0.3 && progress <= 0.72) {
+                            console.log('直行', progress);
+                            camera.position.set(point.x - 10, point.y + 14, point.z)
+                            camera.lookAt(pointBox.x - 10, pointBox.y + 14, pointBox.z)
+                            controls.target.set(pointBox.x - 10, pointBox.y + 14, pointBox.z)
+                        }
+                        if (progress > 0.72) {
+                            console.log('加油', progress);
+                            camera.position.set(point.x, point.y + 14, point.z + 10)
+                            camera.lookAt(pointBox.x, pointBox.y + 14, pointBox.z)
+                            controls.target.set(pointBox.x, pointBox.y + 14, pointBox.z)
+                        }
+                        //    camera.position.set(point.x, point.y + 28, point.z)
+                        // camera.lookAt(pointBox.x, pointBox.y + 28, pointBox.z)
                         // controls.position0.set(point.x, point.y + 2, point.z) //非必要，场景有控件时才加上
-                        controls.target.set(pointBox.x, pointBox.y + 28, pointBox.z) //非必要，场景有控件时才加上
+                        // controls.target.set(pointBox.x, pointBox.y + 28, pointBox.z) //非必要，场景有控件时才加上
 
 
                         // camera.position.set(pointBox.x - 0, pointBox.y + 38, pointBox.z - 150);
@@ -600,10 +646,10 @@
                 camera.position.set(that.cx, that.cy, that.cz)
                 controls.target.set(that.ox, that.oy, that.oz)
                 // controls.update();
-            }).onComplete(() => {
+            }).onComplete((obj) => {
                 if (changCamera) {
-
                     camera.rotation.y = Math.PI
+
                 }
             })
             tween.start()
@@ -614,16 +660,21 @@
             // (180, 58, 380);
             // (-180, 0, -30);
             setAnimationCamera(
-                { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0.5, oz: 0 },
-                { cx: -175, cy: 12, cz: -36.5, ox: 0, oy: 0.5, oz: -3 },
+                { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0, oz: 0 },
+                { cx: -175, cy: 12, cz: -36.5, ox: -175, oy: 12.5, oz: -30 },
                 true
             );
             // camera.rotation.y = Math.PI
 
         })
         btn6Dom.addEventListener('click', () => {
-            setAnimationCamera({ cx: -172.5, cy: 14, cz: -38, ox: -184, oy: 21.5, oz: -26 }, { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0, oz: 0 });
-
+            setAnimationCamera(
+                { cx: -175, cy: 12, cz: -36.5, ox: -175, oy: 12.5, oz: -30 },
+                { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0, oz: 0 }, true
+            );
+            setTimeout(() => {
+                camera.rotation.y = Math.PI / 8
+            }, 4000);
         })
 
         function createGUI() {

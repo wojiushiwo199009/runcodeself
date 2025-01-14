@@ -162,7 +162,7 @@
             const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
             hemiLight.position.set(0, 100, 0);
             scene.add(hemiLight);
-            // // 直射光，可以理解为手电筒
+            // // 平行光
             const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
             dirLight.position.set(0, 100, 10);
             scene.add(dirLight);
