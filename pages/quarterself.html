@@ -233,6 +233,7 @@
           // 清空画布，这里必现设置为false,否则地图底层无法显示
           renderer.autoClear = false;
           scene = new THREE.Scene();
+          // 环境光
           var aLight = new THREE.AmbientLight(0xffffff, 0.3)
           var dLight = new THREE.DirectionalLight(0xffffff, 1)
           dLight.position.set(1000, -100, 900)
