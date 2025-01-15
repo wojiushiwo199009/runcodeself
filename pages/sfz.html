@@ -132,6 +132,8 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             //   投影
             renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.VSMShadowMap; // default THREE.PCFShadowMap
+
             container.appendChild(renderer.domElement);
             controls = new OrbitControls(camera, renderer.domElement);
             controls.maxPolarAngle = THREE.MathUtils.degToRad(90);
@@ -140,19 +142,28 @@
             const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
             hemiLight.position.set(0, 100, 0);
             scene.add(hemiLight);
-            // // 平行光
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-            dirLight.position.set(0, 100, 10);
-            scene.add(dirLight);
 
+            // 平行光，类似太阳光
+            const light = new THREE.DirectionalLight(0xffffff, 1.5);
+            light.position.set(0, 100, 10);
+            scene.add(light);
 
-            // 点光源
-            const pointLight = new THREE.PointLight(0xffffff, 100000);
-            pointLight.position.set(300, 120, 10)
-            // 打开点光源的投射光源功能 投影
-            pointLight.castShadow = true;
-            scene.add(pointLight)
-
+            // 平行光，类似太阳光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            directionalLight.position.set(300, 250, -10);
+            // 平行光投影
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 0.01;
+            directionalLight.shadow.camera.far = 5000;
+            directionalLight.shadow.camera.right = 300;
+            directionalLight.shadow.camera.left = -300;
+            directionalLight.shadow.camera.top = 300;
+            directionalLight.shadow.camera.bottom = -300;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.radius = 4;
+            directionalLight.shadow.bias = -0.00006;
+            scene.add(directionalLight);
             // 辅助轴
             const axesHelper = new THREE.AxesHelper(30)
             scene.add(axesHelper)
