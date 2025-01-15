@@ -1,0 +1,916 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <title>test gl-layers</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .container {
+
+            height: 100%;
+        }
+
+        .per {
+            position: absolute;
+            left: 200px;
+            top: 0;
+            color: #333;
+        }
+
+        .btns {
+            position: absolute;
+            left: 400px;
+            top: 0;
+            height: 24px;
+        }
+
+        .btn {
+            margin-right: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container" class="container"></div>
+    <div id="per" class="per"></div>
+    <div class="btns">
+        <span id="btn1" class='btn'>车辆进站</span>
+        <span id="btn2" class='btn'>加油啦</span>
+        <span id="btn3" class='btn'>车辆出站</span>
+        <span id="btn4" class='btn'>店员回屋</span>
+        <span id="btn5" class='btn'>车内视角</span>
+        <span id="btn6" class='btn'>车外视角</span>
+    </div>
+    <script type="importmap">
+  {
+    "imports": {
+      "three": "../js/three.module.js",
+      "three/addons/": "../js/jsm/"
+    }
+  }
+</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.16/lodash.min.js"></script>
+    <script src="../js/axios.min.js"></script>
+    <script type="module">
+        import * as THREE from 'three'
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        import * as TWEEN from 'https://unpkg.com/@tweenjs/tween.js@23.1.3/dist/tween.esm.js'
+        import { GUI } from "three/addons/libs/lil-gui.module.min.js";
+        import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js"
+        import { RenderPass } from "three/addons/postprocessing/RenderPass.js"
+        import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js"
+        import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
+        import { CopyShader } from 'three/addons/shaders/CopyShader.js'; // 传入了CopyShader着色器，用于拷贝渲染结果
+        import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
+
+        let container, camera, scene, gui, renderer, model, loader, controls;
+        let gas, tree1, tree2, woman, car, move = false, move2 = false, move3 = false;
+        let curve1, curve2, curve3, mixer2, mixer3, onceAction, carsBody = [], carsWheels = [];
+        let progress = 0; // 物体运动时在运动路径的初始位置，范围0~1
+        const velocity = 0.01; // 影响运动速率的一个值，范围0~1，需要和渲染频率结合计算才能得到真正的速率
+        const velocity2 = 0.02; // 影响运动速率的一个值，范围0~1，需要和渲染频率结合计算才能得到真正的速率
+        let bloomComposer, finalComposer, bloomPass;
+        // 辉光图层
+        const bloomLayer = new THREE.Layers()
+        bloomLayer.set(1)
+
+        const darkMaterial = new THREE.MeshBasicMaterial({ color: "black" })
+        const materials = {}
+
+        let group = new THREE.Group()
+        let percentDiv = document.getElementById("per");// 获取进度条元素
+        let btn1Dom = document.getElementById('btn1')
+        let btn2Dom = document.getElementById('btn2')
+        let btn3Dom = document.getElementById('btn3')
+        let btn4Dom = document.getElementById('btn4')
+        let btn5Dom = document.getElementById('btn5')
+        let btn6Dom = document.getElementById('btn6')
+        const clock1 = new THREE.Clock();
+
+        let bodyMaterial = new THREE.MeshPhysicalMaterial({
+            color: 'red',//基础颜色
+            emissive: 0x000000,
+            metalness: 1,//金属度 
+            roughness: 0.5,//粗糙度
+            clearcoat: 1, //清漆层厚度
+            clearcoatRoughness: 0.03 //清漆层粗糙度
+        })
+        let glassMaterial = new THREE.MeshPhysicalMaterial({
+            color: '#121212',
+            metalness: 0.25,
+            roughness: 0,
+            transmission: 0.28//透光性
+        })
+        //辉光
+        const bloomParams = {
+            strength: 1,
+            threshold: 0.12,
+            radius: 0.15,
+        };
+        init()
+        function init() {
+
+            initScene()
+            initModal()
+            //后期辉光处理
+            initPass()
+            animate2()
+        }
+        function initScene() {
+            container = document.getElementById("container");
+            camera = new THREE.PerspectiveCamera(
+                45,
+                window.innerWidth / window.innerHeight,
+                0.25,
+                1000
+            );
+            camera.position.set(180, 58, 380);
+
+            scene = new THREE.Scene();
+            // scene.background = new THREE.Color(0x111111);
+            const loaderbox = new THREE.CubeTextureLoader()
+            let path = '../static/image/skybox/daytime/'
+            let format = '.jpg'
+            const cubeTexture = loaderbox.load([
+                path + 'posX' + format,
+                path + 'negX' + format,
+                path + 'posY' + format,
+                path + 'negY' + format,
+                path + 'posZ' + format,
+                path + 'negZ' + format
+            ])
+            // 需要把色彩空间编码改一下，原因我上一篇说过的
+            cubeTexture.encoding = THREE.sRGBEncoding
+            // scene.background = cubeTexture
+            // 3D场景渲染器
+            renderer = new THREE.WebGLRenderer({
+                // 设置对数深度缓冲区，优化深度冲突问题
+                logarithmicDepthBuffer: true,
+                antialias: true//抗锯齿
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            // renderer.setClearColor(0xffffff, 1);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            //   投影
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.maxPolarAngle = THREE.MathUtils.degToRad(90);
+            // lights
+            // 半球光
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+            hemiLight.position.set(0, 100, 0);
+            scene.add(hemiLight);
+            // // 平行光
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(0, 100, 10);
+            scene.add(dirLight);
+
+
+            // 平行光，类似太阳光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            directionalLight.position.set(300, 250, -10);
+            // 平行光投影
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.near = 0.01;
+            directionalLight.shadow.camera.far = 5000;
+            directionalLight.shadow.camera.right = 300;
+            directionalLight.shadow.camera.left = -300;
+            directionalLight.shadow.camera.top = 300;
+            directionalLight.shadow.camera.bottom = -300;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            directionalLight.shadow.radius = 4;
+            directionalLight.shadow.bias = -0.00006;
+            scene.add(directionalLight);
+
+            // 辅助轴
+            const axesHelper = new THREE.AxesHelper(30)
+            scene.add(axesHelper)
+
+            // loader
+            // 创建LoadingManager实例
+            let loadingManager = new THREE.LoadingManager();
+
+            // 定义进度更新的回调函数
+            loadingManager.onLoad = function () {
+                console.log('所有模型加载完成');
+                percentDiv.innerHTML = '所有模型加载完成'
+            };
+
+            loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
+                console.log(`加载进度: ${Math.round(itemsLoaded / itemsTotal * 100)}%`);
+                percentDiv.innerHTML = `加载进度: ${Math.round(itemsLoaded / itemsTotal * 100)}%`;
+
+            };
+
+            loadingManager.onError = function (url) {
+                console.error('模型加载出错:', url);
+                percentDiv.innerHTML = '模型加载出错'
+            };
+            loader = new GLTFLoader(loadingManager);
+            createGUI()
+        }
+        function initModal() {
+            console.log(new Date().getTime());
+            initGas()
+            initTree()
+            initWoman()
+            initCar()
+
+        }
+        async function initGas() {
+            // model
+            gas = await loadGLTF(loader, "../static/gltf/sfz/red-gas/small_red_gas_station.glb");
+            gas.scene.name = 'gas'
+            // 接收投影
+            gas.scene.getObjectByName('Plane_asphalt_0').receiveShadow = true;
+            gas.scene.getObjectByName('Plane').receiveShadow = true;
+            gas.scene.position.set(0, 0, 0);
+            gas.scene.scale.set(10, 15, 10);
+            // gas.scene.rotation.y = Math.PI / 6
+        }
+        async function initTree() {
+            // model
+            tree1 = await loadGLTF(loader, "../static/gltf/sfz/tree1/scene.gltf");
+            tree1.scene.name = 'tree1号'
+            tree1.scene.position.set(200, 0, 0);
+            tree1.scene.scale.set(5, 5, 5);
+            tree1.scene.traverse((child) => {
+                if (child.isMesh) {
+                    // 投影 发生投影
+                    child.castShadow = true;
+                }
+            })
+            cloneModel(tree1.scene, 200, 0, -100, 2)
+            cloneModel(tree1.scene, 200, 0, 100, 3)
+            // cloneModel(tree1.scene, 200, 0, 50, 4)
+            // cloneModel(tree1.scene, 200, 0, 100, 5)
+        }
+        async function initWoman() {
+            // model
+            woman = await loadGLTF(loader, "../static/gltf/RobotExpressive.glb");
+            woman.scene.name = 'woman'
+            woman.scene.position.set(-90, 0.2, 4);
+            woman.scene.scale.set(5, 5, 5)
+            const points = [
+                new THREE.Vector3(-90, 0.2, 15),
+                new THREE.Vector3(-70, 0.2, 15),
+                new THREE.Vector3(-50, 0, 15),
+                new THREE.Vector3(-30, 0, 15),
+                new THREE.Vector3(-20, 0, 15),
+                new THREE.Vector3(0, 0, 15),
+                new THREE.Vector3(20, 0, 15),
+                new THREE.Vector3(40, 0.2, 15),
+                new THREE.Vector3(60, 0.2, 20),
+                new THREE.Vector3(68, 0.2, 20),
+                new THREE.Vector3(68, 0.2, 22),
+                new THREE.Vector3(68, 0.2, 25),
+            ];
+
+            curve2 = new THREE.CatmullRomCurve3(points);
+            curve2.curveType = "catmullrom";
+            curve2.closed = false;//设置是否闭环
+            curve2.tension = 0.8; //设置线的张力，0为无弧度折线
+            const point50 = curve2.getPoints(50);
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const curveObject = new THREE.Line(geometry, material)
+            // scene.add(curveObject)
+
+        }
+        async function initCar() {
+            // model
+            car = await loadGLTF(loader, "../static/gltf/sfz/car4/scene.gltf");
+            car.scene.name = 'car'
+            console.log(car, ';car');
+            // 汽车自带地板和阴影，隐藏地板，阴影自动也就不见了
+            car.scene.getObjectByName('groundPlane').visible = false
+            car.scene.traverse((child) => {
+                if (child.name == 'rHeadlight' || child.name == 'lHeadlight') {
+                    child.layers.toggle(1);
+                }
+            })
+            car.scene.position.set(-180, 0, -30);
+            // car.scene.position.set(0, 0, 0);
+            // car.scene.rotation.y = Math.PI / 2
+            car.scene.scale.set(2, 2, 2);
+            car.scene.traverse((obj) => {
+                if (obj.name == "passengerDoor_bodyMAT_0" || obj.name == "driverDoor_bodyMAT_0" || obj.name == "body_bodyMAT_0") {
+                    carsBody.push(obj)
+                    obj.material = bodyMaterial
+                }
+                if (obj.name == "hood_bodyMAT_0") {
+                    obj.material = new THREE.MeshPhysicalMaterial({
+                        color: 0xff7b00,//基础颜色
+                        emissive: 0x000000,
+                        metalness: 1,//金属度 
+                        roughness: 0.5,//粗糙度
+                        clearcoat: 1, //清漆层厚度
+                        clearcoatRoughness: 0.03 //清漆层粗糙度
+                    })
+                }
+                if (obj.name == "passengerDoor_glass_0" || obj.name == "body_glass_0" || obj.name == "driverDoor_glass_0") {
+                    obj.material = glassMaterial
+                }
+                if (obj.name == 'wheel1_1' || obj.name == 'slick2' || obj.name == 'wheel_rl' || obj.name == 'wheel_rr') {
+                    carsWheels.push(obj)
+                }
+            })
+            mixer3 = new THREE.AnimationMixer(car.scene);
+            let clipAction = mixer3.clipAction(car.animations[0]);
+            clipAction.play()
+            // 点少了 车子会走偏
+            const points = [
+                new THREE.Vector3(-180, 0, -30),
+                new THREE.Vector3(-180, 0, 0),
+                new THREE.Vector3(-180, 0, 30),
+                new THREE.Vector3(-180, 0, 60),
+                new THREE.Vector3(-180, 0, 90),
+                new THREE.Vector3(-180, 0, 120),
+                new THREE.Vector3(-180, 0, 150),
+                new THREE.Vector3(-180, 0, 180),
+                new THREE.Vector3(-150, 0, 180),
+                new THREE.Vector3(-120, 0, 180),
+                new THREE.Vector3(-90, 0, 180),
+                new THREE.Vector3(-60, 0, 180),
+                new THREE.Vector3(-30, 0, 180),
+                new THREE.Vector3(0, 0, 180),
+                new THREE.Vector3(30, 0, 180),
+                new THREE.Vector3(60, 0, 180),
+                new THREE.Vector3(95, 0, 180),
+                new THREE.Vector3(95, 0, 150),
+                new THREE.Vector3(95, 0, 120),
+                new THREE.Vector3(95, 0, 90),
+                new THREE.Vector3(95, 0, 60),
+                new THREE.Vector3(95, 0, 30),
+                new THREE.Vector3(95, 0, 0),
+                new THREE.Vector3(95, 0, -10),
+            ];
+
+            curve1 = new THREE.CatmullRomCurve3(points);
+            curve1.curveType = "catmullrom";
+            curve1.closed = false;//设置是否闭环
+            curve1.tension = 0.8; //设置线的张力，0为无弧度折线
+            // const point50 = curve1.getPoints(50);
+            // const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            // const material = new THREE.LineBasicMaterial({ color: 0x000000 });
+            // const curveObject = new THREE.Line(geometry, material)
+            // scene.add(curveObject)
+
+
+            const points3 = [
+                new THREE.Vector3(95, 0, -10),
+                new THREE.Vector3(95, 0, -40),
+                new THREE.Vector3(95, 0, -70),
+                new THREE.Vector3(95, 0, -100),
+                new THREE.Vector3(95, 0, -130),
+                new THREE.Vector3(95, 0, -160),
+                new THREE.Vector3(95, 0, -190),
+                new THREE.Vector3(95, 0, -190),
+                new THREE.Vector3(110, 0, -190),
+                new THREE.Vector3(140, 0, -190),
+                new THREE.Vector3(170, 0, -190),
+                new THREE.Vector3(200, 0, -190),
+                new THREE.Vector3(230, 0, -190),
+                new THREE.Vector3(260, 0, -190),
+                new THREE.Vector3(270, 0, -190),
+
+
+            ];
+            curve3 = new THREE.CatmullRomCurve3(points3);
+            curve3.curveType = "catmullrom";
+            curve3.closed = false;//设置是否闭环
+            curve3.tension = 0.8; //设置线的张力，0为无弧度折线
+            const point50 = curve3.getPoints(50);
+            const geometry3 = new THREE.BufferGeometry().setFromPoints(points3);
+            const material3 = new THREE.LineBasicMaterial({ color: 0xff0000 });
+            const curveObject3 = new THREE.Line(geometry3, material3)
+            // scene.add(curveObject3)
+
+        }
+        function initPass() {
+            // 后期处理
+            const renderScene = new RenderPass(scene, camera)
+            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.8, 0.4, 0.0)
+            bloomPass.strength = bloomParams.strength//辉光强度
+            bloomPass.radius = bloomParams.radius //辉光半径
+            bloomPass.threshold = bloomParams.threshold //辉光阈值
+            bloomComposer = new EffectComposer(renderer)
+            bloomComposer.renderToScreen = false
+            bloomComposer.addPass(renderScene)
+            bloomComposer.addPass(bloomPass)
+            const gammaCorrectionShader = new ShaderPass(GammaCorrectionShader)
+            const finalPass = new ShaderPass(
+                new THREE.ShaderMaterial({
+                    uniforms: {
+                        baseTexture: { value: null },
+                        bloomTexture: { value: bloomComposer.renderTarget2.texture },
+                    },
+                    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+        `,
+                    fragmentShader: `
+        uniform sampler2D baseTexture;
+        uniform sampler2D bloomTexture;
+        varying vec2 vUv;
+        void main() {
+            gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );
+        }
+        `,
+                    defines: {},
+                }),
+                "baseTexture"
+            )
+            finalPass.needsSwap = true
+            finalComposer = new EffectComposer(renderer)
+            finalComposer.addPass(renderScene)
+            finalComposer.addPass(finalPass)
+            // 添加伽马校正后处理效果后，发现场景的亮度恢复正常，解决了场景变暗的问题。
+            finalComposer.addPass(gammaCorrectionShader)
+        }
+
+
+        function animate2() {
+            const delta = clock1.getDelta();
+            const time = -performance.now() / 1000;
+            renderer.render(scene, camera);
+            TWEEN.update()
+            // if (carsWheels.length > 0) {
+            //     carsWheels.forEach((obj) => {
+            //         // obj.rotation.x = time * Math.PI * 2 / 1000
+            //         obj.rotation.x += 0.5;
+            //     })
+            // }
+
+            // if (mixer3) {
+            //     mixer3.update(delta);
+            // }
+
+            if (mixer2) {
+                mixer2.update(delta);
+            }
+            if (move) {
+
+                moveOnCurve1()
+            }
+            if (move2) {
+
+                moveOnCurve2()
+
+            }
+            if (move3) {
+
+                moveOnCurve3()
+
+            }
+            requestAnimationFrame(animate2)
+            scene.traverse(obj => {
+                if (obj.isMesh && bloomLayer.test(obj.layers) === false) {
+                    materials[obj.uuid] = obj.material // 保存原材质
+                    obj.material = darkMaterial	// 替换材质
+                }
+            })
+            bloomComposer.render() // 渲染到bloomComposer
+            scene.traverse(obj => {
+                if (materials[obj.uuid]) {
+                    obj.material = materials[obj.uuid] // 恢复原材质
+                    delete materials[obj.uuid] // 删除原材质
+                }
+            })
+            finalComposer.render()
+        }
+
+        // 切换到car预览状态
+        btn1Dom.addEventListener('click', function () {
+            // const A = car.scene.getObjectByName('car');
+            // const pos = new THREE.Vector3();
+            // A.getWorldPosition(pos); //获取三维场景中某个对象的世界坐标
+            // // 相机飞行到的位置和观察目标拉开一定距离；
+            // const pos2 = pos.clone().addScalar(250);//向量的x、y、z坐标分别在pos基础上增加30
+            // // // 相机从当前位置camera.position飞行三维场景中某个世界坐标附近
+            // // console.log(pos2.x, pos.x, 'x');
+            // createCameraTween(pos2, pos)
+            move = true
+        })
+        // 相机动画函数，从A点飞行到B点，A点表示相机当前所处状态
+        // pos: 三维向量Vector3，表示动画结束相机位置
+        // target: 三维向量Vector3，表示相机动画结束lookAt指向的目标观察点
+        function createCameraTween(endPos, endTarget) {
+            new TWEEN.Tween({
+                // 不管相机此刻处于什么状态，直接读取当前的位置和目标观察点
+                x: camera.position.x,
+                y: camera.position.y,
+                z: camera.position.z,
+                tx: controls.target.x,
+                ty: controls.target.y,
+                tz: controls.target.z,
+            })
+                .to({
+                    // 动画结束相机位置坐标
+                    x: endPos.x,
+                    y: endPos.y,
+                    z: endPos.z,
+                    // 动画结束相机指向的目标观察点
+                    tx: endTarget.x,
+                    ty: endTarget.y,
+                    tz: endTarget.z,
+                }, 2000)
+                .onUpdate(function (obj) {
+                    // 动态改变相机位置
+                    camera.position.set(obj.x, obj.y, obj.z);
+                    // 动态计算相机视线
+                    // camera.lookAt(obj.tx, obj.ty, obj.tz);
+                    controls.target.set(obj.tx, obj.ty, obj.tz);
+                    controls.update();//内部会执行.lookAt()
+                }).onComplete(function (obj) {
+                    //   在complete中执行control.updata,或者在update方法中执行control.updata,这样就不用设置camera.lookAt方法了
+                    // controls.target.set(obj.tx, obj.ty, obj.tz);
+                    // controls.update();
+                    console.log(controls.target);
+                })
+                .start().easing(TWEEN.Easing.Quadratic.Out);//使用二次缓动函数;
+        }
+
+        // 物体汽车沿线移动方法，车辆进站
+        function moveOnCurve1() {
+            if (curve1 == null || car == null) {
+                console.log("Loading")
+            } else {
+                if (progress <= 1 - velocity) {
+                    const point = curve1.getPointAt(progress); //获取样条曲线指定点坐标
+                    const pointBox = curve1.getPointAt(progress + velocity); //获取样条曲线指定点坐标
+
+                    if (point && pointBox) {
+                        car.scene.position.set(point.x, point.y, point.z);
+                        car.scene.lookAt(pointBox.x, pointBox.y, pointBox.z);//因为这个模型加载进来默认面部是正对Z轴负方向的，所以直接lookAt会导致出现倒着跑的现象，这里用重新设置朝向的方法来解决。
+                        console.log(point, pointBox, 'point');
+                        // 视觉跟随车子运动
+                        // if (progress <= 0.3) {
+
+                        // (180, 58, 380);
+                        // (-180, 0, -30);
+                        // setAnimationCamera(
+                        //     { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0.5, oz: 0 },
+                        //     { cx: -175, cy: 12, cz: -36.5, ox: 0, oy: 0.5, oz: -3 },
+                        //     true
+                        // );
+                        if (progress <= 0.3) {
+                            console.log('前进');
+                            camera.position.set(point.x, point.y + 14, point.z - 10)
+                            camera.lookAt(pointBox.x, pointBox.y + 14, pointBox.z)
+                            controls.target.set(pointBox.x, pointBox.y + 14, pointBox.z) //非必要，场景有控件时才加上
+
+                        }
+                        if (progress > 0.3 && progress <= 0.72) {
+                            console.log('直行', progress);
+                            camera.position.set(point.x - 10, point.y + 14, point.z)
+                            camera.lookAt(pointBox.x - 10, pointBox.y + 14, pointBox.z)
+                            controls.target.set(pointBox.x - 10, pointBox.y + 14, pointBox.z)
+                        }
+                        if (progress > 0.72) {
+                            console.log('加油', progress);
+                            camera.position.set(point.x, point.y + 14, point.z + 10)
+                            camera.lookAt(pointBox.x, pointBox.y + 14, pointBox.z)
+                            controls.target.set(pointBox.x, pointBox.y + 14, pointBox.z)
+                        }
+                        //    camera.position.set(point.x, point.y + 28, point.z)
+                        // camera.lookAt(pointBox.x, pointBox.y + 28, pointBox.z)
+                        // controls.position0.set(point.x, point.y + 2, point.z) //非必要，场景有控件时才加上
+                        // controls.target.set(pointBox.x, pointBox.y + 28, pointBox.z) //非必要，场景有控件时才加上
+
+
+                        // camera.position.set(pointBox.x - 0, pointBox.y + 38, pointBox.z - 150);
+                        // } else if (progress > 0.3 && progress <= 0.74) {
+                        //     camera.position.set(pointBox.x + 150, pointBox.y + 38, pointBox.z);
+
+                        // } else {
+                        //     camera.position.set(pointBox.x - 0, pointBox.y + 38, pointBox.z + 150);
+
+                        // }
+                        // if (progress <= 0.7) {
+                        //     camera.position.set(pointBox.x - 230, pointBox.y + 58, pointBox.z + 150);
+                        // } else {
+                        //     camera.position.set(pointBox.x + 130, pointBox.y + 58, pointBox.z + 150);
+                        // }
+                        // // 模型中心点
+                        // console.log(pointBox.x, pointBox.y, pointBox.z);
+                        // controls.target.set(pointBox.x, pointBox.y, pointBox.z);
+                        controls.update();//内部会执行.lookAt()
+                        var targetPos = pointBox   //目标位置点
+                        var offsetAngle = 0 //目标移动时的朝向偏移
+
+                        // //以下代码在多段路径时可重复执行,暂时没发现用处
+                        // var mtx = new THREE.Matrix4()  //创建一个4维矩阵
+                        // // .lookAt ( eye : Vector3, target : Vector3, up : Vector3 ) : this,构造一个旋转矩阵，从eye 指向 target，由向量 up 定向。
+                        // mtx.lookAt(car.scene.position, targetPos, car.scene.up) //设置朝向
+                        // mtx.multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, offsetAngle, 0)))
+                        // var toRot = new THREE.Quaternion().setFromRotationMatrix(mtx)  //计算出需要进行旋转的四元数值
+                        // car.scene.quaternion.slerp(toRot, 0.2)
+                    }
+
+                    progress += velocity;
+                    console.log(progress, 'pro');
+                } else {
+                    console.log(progress, 'progress是0了');
+                    progress = 0;
+                    move = false
+                }
+            }
+        }
+
+        // 加油啦
+        btn2Dom.addEventListener('click', function () {
+            move2 = true
+            mixer2 = new THREE.AnimationMixer(woman.scene);
+            let clipAction = mixer2.clipAction(woman.animations[10]);
+            clipAction.play()
+            onceAction = mixer2.clipAction(woman.animations[12])
+            onceAction.setLoop(THREE.LoopOnce);
+        })
+        function moveOnCurve2() {
+            if (curve2 == null || woman == null) {
+                console.log("Loading")
+            } else {
+                if (progress <= 1 - velocity2) {
+                    const point = curve2.getPointAt(progress); //获取样条曲线指定点坐标
+                    const pointBox = curve2.getPointAt(progress + velocity2); //获取样条曲线指定点坐标
+
+                    if (point && pointBox) {
+                        woman.scene.position.set(point.x, point.y, point.z);
+                        woman.scene.lookAt(pointBox.x, pointBox.y, pointBox.z);//因为这个模型加载进来默认面部是正对Z轴负方向的，所以直接lookAt会导致出现倒着跑的现象，这里用重新设置朝向的方法来解决。
+
+                        // //以下代码在多段路径时可重复执行,暂时没发现用处
+                        // var mtx = new THREE.Matrix4()  //创建一个4维矩阵
+                        // // .lookAt ( eye : Vector3, target : Vector3, up : Vector3 ) : this,构造一个旋转矩阵，从eye 指向 target，由向量 up 定向。
+                        // mtx.lookAt(woman.scene.position, targetPos, woman.scene.up) //设置朝向
+                        // mtx.multiply(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, offsetAngle, 0)))
+                        // var toRot = new THREE.Quaternion().setFromRotationMatrix(mtx)  //计算出需要进行旋转的四元数值
+                        // woman.scene.quaternion.slerp(toRot, 0.2)
+                    }
+
+                    progress += velocity2;
+                    console.log(progress);
+                    if (progress >= 0.98) {
+                        onceAction.play()
+                    }
+                } else {
+
+                    progress = 0;
+                    move2 = false
+                    mixer2 = null
+                    new THREE.AnimationMixer(woman.scene).clipAction(woman.animations[12]).play()
+                    const objInfo = gas.scene.getObjectByName("Cube030_Material022_0");
+                    objInfo.position.set(0, 25, 0)
+                }
+            }
+        }
+
+        btn3Dom.addEventListener('click', function () {
+            move3 = true
+        })
+
+        // 物体汽车沿线移动方法,车辆出站
+        function moveOnCurve3() {
+            if (curve3 == null || car == null) {
+                console.log("Loading")
+            } else {
+                if (progress <= 1 - velocity) {
+                    const point = curve3.getPointAt(progress); //获取样条曲线指定点坐标
+                    const pointBox = curve3.getPointAt(progress + velocity); //获取样条曲线指定点坐标
+                    if (point && pointBox) {
+                        car.scene.position.set(point.x, point.y, point.z);
+                        car.scene.lookAt(pointBox.x, pointBox.y, pointBox.z);//因为这个模型加载进来默认面部是正对Z轴负方向的，所以直接lookAt会导致出现倒着跑的现象，这里用重新设置朝向的方法来解决。
+                    }
+                    progress += velocity;
+                } else {
+                    progress = 0;
+                    move3 = false
+                }
+            }
+        }
+
+
+        function loadGLTF(md, url) {
+            return new Promise((resolve, reject) => {
+                md.load(
+                    url,
+                    gltf => {
+                        scene.add(gltf.scene);
+                        console.log(gltf);
+                        resolve(gltf);
+                    },
+                    undefined,
+                    function (error) {
+                        console.error(error);
+                    }
+                );
+            });
+        }
+        function cloneModel(obj, x, y, z, num) { //params: 模型， 坐标xyz，自定义数据
+            const cloneObj = obj.clone();
+            cloneObj.children.map((v, i) => { //克隆材质
+                if (v.material) {
+                    v.material = obj.children[i].material.clone();
+                }
+            });
+            cloneObj.$data = {
+                name: 'tree' + num + '号'
+            }
+            cloneObj.position.set(x, y, z);
+            scene.add(cloneObj);
+        }
+
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+
+        function setAnimationDoor(start, end, mesh) {
+            const tween = new TWEEN.Tween(start).to(end, 1000).easing(TWEEN.Easing.Quadratic.Out)
+            tween.onUpdate((that) => {
+                mesh.rotation.x = that.x
+            })
+            tween.start()
+        }
+
+        function setAnimationCamera(start, end, changCamera) {
+            const tween = new TWEEN.Tween(start).to(end, 3000).easing(TWEEN.Easing.Quadratic.Out)
+            tween.onUpdate((that) => {
+                console.log(that, 'tt');
+                camera.position.set(that.cx, that.cy, that.cz)
+                controls.target.set(that.ox, that.oy, that.oz)
+                // controls.update();
+            }).onComplete((obj) => {
+                if (changCamera) {
+                    camera.rotation.y = Math.PI
+
+                }
+            })
+            tween.start()
+        }
+
+        btn5Dom.addEventListener('click', () => {
+            console.log(car);
+            // (180, 58, 380);
+            // (-180, 0, -30);
+            setAnimationCamera(
+                { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0, oz: 0 },
+                { cx: -175, cy: 12, cz: -36.5, ox: -175, oy: 12.5, oz: -30 },
+                true
+            );
+            // camera.rotation.y = Math.PI
+
+        })
+        btn6Dom.addEventListener('click', () => {
+            setAnimationCamera(
+                { cx: -175, cy: 12, cz: -36.5, ox: -175, oy: 12.5, oz: -30 },
+                { cx: 180, cy: 58, cz: 380, ox: 0, oy: 0, oz: 0 }, true
+            );
+            setTimeout(() => {
+                camera.rotation.y = Math.PI / 8
+            }, 4000);
+        })
+
+        function createGUI() {
+            gui = new GUI();
+            gui.domElement.parentNode.querySelector('.title').textContent = '汽车操作'
+            const bodyChange = gui.addFolder('车身材质设置')
+            bodyChange.addColor(bodyMaterial, 'color').name('车身颜色').onChange(value => {
+                bodyMaterial.color.set(value)
+            })
+            bodyChange.add(bodyMaterial, 'metalness', 0, 1).name('金属度').onChange(value => {
+                bodyMaterial.metalness = value
+            })
+            bodyChange.add(bodyMaterial, 'roughness', 0, 1).name('粗糙度').onChange(value => {
+                bodyMaterial.roughness = value
+            })
+            bodyChange.add(bodyMaterial, 'clearcoat', 0, 1).name('清漆强度').onChange(value => {
+                bodyMaterial.clearcoat = value
+            })
+            bodyChange.add(bodyMaterial, 'clearcoatRoughness', 0, 1).name('清漆层粗糙度').onChange(value => {
+                bodyMaterial.clearcoatRoughness = value
+            })
+            const glassChange = gui.addFolder('玻璃设置')
+            glassChange.close()
+            glassChange.addColor(glassMaterial, 'color').name('玻璃颜色').onChange(value => {
+                glassMaterial.color.set(value)
+            })
+            glassChange.add(glassMaterial, 'metalness', 0, 1).name('金属度').onChange(value => {
+                glassMaterial.metalness = value
+            })
+            glassChange.add(glassMaterial, 'roughness', 0, 1).name('粗糙度').onChange(value => {
+                glassMaterial.roughness = value
+            })
+            glassChange.add(glassMaterial, 'transmission', 0, 1).name('透光性').onChange(value => {
+                glassMaterial.transmission = value
+            })
+            // 辉光设置
+            const bloomChange = gui.addFolder('辉光设置')
+            bloomChange.close()
+            bloomChange.add(bloomParams, 'strength', 0, 10).step(0.01).name('强度').onChange(value => {
+                bloomPass.strength = Number(value)
+            })
+            bloomChange.add(bloomParams, 'threshold', 0, 1.0).step(0.01).name('阈值').onChange(value => {
+                bloomPass.threshold = Number(value)
+            })
+            bloomChange.add(bloomParams, 'radius', 0, 1.0).step(0.01).name('半径').onChange(value => {
+                bloomPass.radius = Number(value)
+            })
+        }
+        function onClick(event) {
+            console.log(group, scene, 'group');
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+            // 使用鼠标位置和当前相机来更新射线投射器
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children);
+            if (intersects.length > 0) {
+                intersects[0].object.layers.toggle(1)
+                console.log(intersects[0], intersects[0].object.parent.name, 'intersects');
+                if (intersects[0].object.parent.name == "passengerDoor") {
+                    const tween = new TWEEN.Tween({ x: 0 }).to({ x: -230 }, 1000).easing(TWEEN.Easing.Quadratic.Out)
+                    if (intersects[0].object.parent.rotation.y == 0) {
+                        tween.onUpdate((that) => {
+                            console.log(that, 'tt');
+                            intersects[0].object.parent.rotation.y = Math.PI / 3
+                            intersects[0].object.parent.position.x = -4.8
+                            intersects[0].object.parent.position.z = -2.8
+                        })
+                        tween.start()
+                    } else {
+                        intersects[0].object.parent.rotation.y = 0
+                        intersects[0].object.parent.position.x = 0
+                        intersects[0].object.parent.position.z = 0
+                    }
+                }
+                if (intersects[0].object.parent.name == "driverDoor") {
+                    const tween = new TWEEN.Tween({ x: 0 }).to({ x: -230 }, 1000).easing(TWEEN.Easing.Quadratic.Out)
+                    if (intersects[0].object.parent.rotation.y == 0) {
+                        tween.onUpdate((that) => {
+                            console.log(that, 'tt');
+                            intersects[0].object.parent.rotation.y = -Math.PI / 3
+                            intersects[0].object.parent.position.x = 4.8
+                            intersects[0].object.parent.position.z = -2.8
+                        })
+                        tween.start()
+                    } else {
+                        intersects[0].object.parent.rotation.y = 0
+                        intersects[0].object.parent.position.x = 0
+                        intersects[0].object.parent.position.z = 0
+                    }
+                }
+                if (intersects[0].object.parent.name == "rHeadlight") {
+                    intersects[0].object.material = new THREE.MeshPhysicalMaterial({
+                        color: 0xffffff,//基础颜色
+                    })
+                    intersects[0].object.layers.toggle(1) // 切换图层
+                }
+                if (intersects[0].object.parent.name == "lHeadlight") {
+                    intersects[0].object.material = new THREE.MeshPhysicalMaterial({
+                        color: 0xffffff,//基础颜色
+                    })
+                    intersects[0].object.layers.toggle(1) // 切换图层
+                }
+                // objInfoParent.position.set(0, 30, 0)
+                //tag会标注在intersects[0].object.ancestors模型的局部坐标系原点位置
+                // let rack = findParent(intersects[0].object, checkIsRack);
+                // if (rack) {
+                // tagDom.style.display = 'block'
+                // tagDom.innerHTML = intersects[0].object.name;//修改标签数据
+                // tag.scale.set(0.05, 0.05, 0.1);//适当缩放模型标签
+                // tag.position.y = 50 / 2 * 0.1;//标签底部箭头和空对象标注点重合：偏移高度像素值一半*缩放比例
+                // tag.rotation.y = -Math.PI / 2
+                // intersects[0].object.add(tag);
+            } else {
+            }
+        }
+        // 监听鼠标点击事件
+        document.addEventListener('click', onClick, false);
+
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            bloomComposer.setSize(window.innerWidth, window.innerHeight)
+            finalComposer.setSize(window.innerWidth, window.innerHeight)
+        }
+        window.addEventListener('resize', onWindowResize, false);
+
+    </script>
+</body>
+
+</html>
