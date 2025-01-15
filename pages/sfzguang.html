@@ -113,9 +113,9 @@
         })
         //辉光
         const bloomParams = {
-            strength: 1,
-            threshold: 0.12,
-            radius: 0.15,
+            strength: 0.6,
+            threshold: 0.2,
+            radius: 0.3,
         };
         init()
         function init() {
@@ -152,6 +152,18 @@
             // 需要把色彩空间编码改一下，原因我上一篇说过的
             cubeTexture.encoding = THREE.sRGBEncoding
             // scene.background = cubeTexture
+
+            //天空盒
+            const texture = new THREE.TextureLoader().load("../static/image/skybox/daytime/posX.jpg");
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            // texture.repeat.set(1, 1);
+            const skyBox = new THREE.SphereGeometry(500, 100, 100);
+            const material = new THREE.MeshPhongMaterial({
+                map: texture,
+                side: THREE.BackSide,
+            });
+            const skyBoxMesh = new THREE.Mesh(skyBox, material);
+            scene.add(skyBoxMesh)
             // 3D场景渲染器
             renderer = new THREE.WebGLRenderer({
                 // 设置对数深度缓冲区，优化深度冲突问题
@@ -165,7 +177,10 @@
             renderer.shadowMap.enabled = true;
             container.appendChild(renderer.domElement);
             controls = new OrbitControls(camera, renderer.domElement);
-            controls.maxPolarAngle = THREE.MathUtils.degToRad(90);
+            //  限制垂直方向转动角度 限制旋转角度
+            controls.minPolarAngle = Math.PI / 2.7;
+            controls.maxPolarAngle = Math.PI / 2.1;
+
             // lights
             // 半球光
             const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
@@ -196,7 +211,7 @@
 
             // 辅助轴
             const axesHelper = new THREE.AxesHelper(30)
-            scene.add(axesHelper)
+            scene.add(axesHelper);
 
             // loader
             // 创建LoadingManager实例
@@ -236,6 +251,7 @@
             // 接收投影
             gas.scene.getObjectByName('Plane_asphalt_0').receiveShadow = true;
             gas.scene.getObjectByName('Plane').receiveShadow = true;
+            // gas.scene.getObjectByName('Plane').scale.set(1000, 1000, 1000)
             gas.scene.position.set(0, 0, 0);
             gas.scene.scale.set(10, 15, 10);
             // gas.scene.rotation.y = Math.PI / 6
@@ -820,7 +836,7 @@
             // 辉光设置
             const bloomChange = gui.addFolder('辉光设置')
             bloomChange.close()
-            bloomChange.add(bloomParams, 'strength', 0, 10).step(0.01).name('强度').onChange(value => {
+            bloomChange.add(bloomParams, 'strength', 0, 4.0).step(0.01).name('强度').onChange(value => {
                 bloomPass.strength = Number(value)
             })
             bloomChange.add(bloomParams, 'threshold', 0, 1.0).step(0.01).name('阈值').onChange(value => {
@@ -838,6 +854,7 @@
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(scene.children);
             if (intersects.length > 0) {
+                if (intersects[0].object.name == '') return
                 intersects[0].object.layers.toggle(1)
                 console.log(intersects[0], intersects[0].object.parent.name, 'intersects');
                 if (intersects[0].object.parent.name == "passengerDoor") {
