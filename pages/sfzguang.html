@@ -195,17 +195,18 @@
             // 平行光，类似太阳光
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
             directionalLight.position.set(300, 250, -10);
-            // 平行光投影
+            // 平行光投影  观察阴影的媒介其实是摄像机，所以在平行光的位置会会存在一台摄像机，
             directionalLight.castShadow = true;
+            // 相机位置调整
             directionalLight.shadow.camera.near = 0.01;
-            directionalLight.shadow.camera.far = 5000;
+            directionalLight.shadow.camera.far = 5000; //far越小，阴影可能渲染的越不完全
             directionalLight.shadow.camera.right = 300;
             directionalLight.shadow.camera.left = -300;
             directionalLight.shadow.camera.top = 300;
             directionalLight.shadow.camera.bottom = -300;
-            directionalLight.shadow.mapSize.width = 1024;
-            directionalLight.shadow.mapSize.height = 1024;
-            directionalLight.shadow.radius = 4;
+            directionalLight.shadow.mapSize.width = 2048;//修改mapSize的分辨率来获取更清晰的阴影，越大越清晰
+            directionalLight.shadow.mapSize.height = 2048;//修改mapSize的分辨率来获取更清晰的阴影，越大越清晰
+            directionalLight.shadow.radius = 4; //值越大代表阴影越模糊
             directionalLight.shadow.bias = -0.00006;
             scene.add(directionalLight);
 
