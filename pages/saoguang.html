@@ -45,8 +45,10 @@
 
     <script type="module">
         import * as THREE from "three";
+
         import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
         import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 
         const { innerWidth, innerHeight } = window;
@@ -75,7 +77,10 @@
 
         // 坐标轴
         scene.add(new THREE.AxesHelper(100000));
-
+        // lights
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 2);
+        hemiLight.position.set(0, 100, 0);
+        scene.add(hemiLight);
         // 着色器
         const uniforms = {
             innerCircleWidth: { value: 0 },
@@ -86,14 +91,13 @@
 
             color: { value: new THREE.Color(0.0, 0.0, 1.0) },
 
-            opacity: { value: 0.3 },
+            opacity: { value: 0.7 },
 
             center: { value: new THREE.Vector3(0, 0, 0) },
         };
 
         const material = new THREE.ShaderMaterial({
             uniforms,
-
             vertexShader: `
         varying vec2 vUv;
         varying vec3 v_position;
@@ -103,7 +107,6 @@
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
     `,
-
             fragmentShader: `
         varying vec2 vUv;
         varying vec3 v_position;
@@ -123,7 +126,7 @@
             
                 gl_FragColor = mix(vec4(diff, 0.1), vec4(color, opacity), r);
             }else {
-                gl_FragColor = vec4(diff, 0.1);
+                gl_FragColor = vec4(diff, 0.5);
             }
         }
     `,
