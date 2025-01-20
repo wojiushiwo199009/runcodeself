@@ -74,7 +74,7 @@
         import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
 
         let container, camera, scene, gui, renderer, model, loader, controls;
-        let gas, tree1, tree2, woman, car, move = false, move2 = false, move3 = false;
+        let gas, tree1, tree2, woman, car, move = false, showLSpotLight = true, showRSpotLight = true, move2 = false, move3 = false;
         let curve1, curve2, curve3, mixer2, mixer3, onceAction, carsBody = [], carsWheels = [];
         let progress = 0; // 物体运动时在运动路径的初始位置，范围0~1
         const velocity = 0.01; // 影响运动速率的一个值，范围0~1，需要和渲染频率结合计算才能得到真正的速率
@@ -239,9 +239,9 @@
         }
         function initModal() {
             console.log(new Date().getTime());
-            initGas()
-            initTree()
-            initWoman()
+            // initGas()
+            // initTree()
+            // initWoman()
             initCar()
 
         }
@@ -766,7 +766,6 @@
         function setAnimationCamera(start, end, changCamera) {
             const tween = new TWEEN.Tween(start).to(end, 3000).easing(TWEEN.Easing.Quadratic.Out)
             tween.onUpdate((that) => {
-                console.log(that, 'tt');
                 camera.position.set(that.cx, that.cy, that.cz)
                 controls.target.set(that.ox, that.oy, that.oz)
                 // controls.update();
@@ -780,7 +779,6 @@
         }
 
         btn5Dom.addEventListener('click', () => {
-            console.log(car);
             // (180, 58, 380);
             // (-180, 0, -30);
             setAnimationCamera(
@@ -848,7 +846,6 @@
             })
         }
         function onClick(event) {
-            console.log(group, scene, 'group');
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
             // 使用鼠标位置和当前相机来更新射线投射器
@@ -862,7 +859,6 @@
                     const tween = new TWEEN.Tween({ x: 0 }).to({ x: -230 }, 1000).easing(TWEEN.Easing.Quadratic.Out)
                     if (intersects[0].object.parent.rotation.y == 0) {
                         tween.onUpdate((that) => {
-                            console.log(that, 'tt');
                             intersects[0].object.parent.rotation.y = Math.PI / 3
                             intersects[0].object.parent.position.x = -4.8
                             intersects[0].object.parent.position.z = -2.8
@@ -878,7 +874,6 @@
                     const tween = new TWEEN.Tween({ x: 0 }).to({ x: -230 }, 1000).easing(TWEEN.Easing.Quadratic.Out)
                     if (intersects[0].object.parent.rotation.y == 0) {
                         tween.onUpdate((that) => {
-                            console.log(that, 'tt');
                             intersects[0].object.parent.rotation.y = -Math.PI / 3
                             intersects[0].object.parent.position.x = 4.8
                             intersects[0].object.parent.position.z = -2.8
@@ -891,16 +886,32 @@
                     }
                 }
                 if (intersects[0].object.parent.name == "rHeadlight") {
-                    intersects[0].object.material = new THREE.MeshPhysicalMaterial({
-                        color: 0xffffff,//基础颜色
-                    })
-                    intersects[0].object.layers.toggle(1) // 切换图层
+                    const spotLight = new THREE.SpotLight(0xff0000, 1, 1000, Math.PI / 4, 0.05, 2);
+                    // 将光源添加到场景中
+                    if (showRSpotLight) {
+                        intersects[0].object.add(spotLight);
+                    } else {
+                        intersects[0].object.remove(spotLight);
+                    }
+                    showRSpotLight = !showRSpotLight
+                    // intersects[0].object.material = new THREE.MeshPhysicalMaterial({
+                    //     color: 0xffffff,//基础颜色
+                    // })
+                    // intersects[0].object.layers.toggle(1) // 切换图层
                 }
                 if (intersects[0].object.parent.name == "lHeadlight") {
-                    intersects[0].object.material = new THREE.MeshPhysicalMaterial({
-                        color: 0xffffff,//基础颜色
-                    })
-                    intersects[0].object.layers.toggle(1) // 切换图层
+                    // intersects[0].object.material = new THREE.MeshPhysicalMaterial({
+                    //     color: 0xffffff,//基础颜色
+                    // })
+                    // intersects[0].object.layers.toggle(1) // 切换图层
+                    const spotLight = new THREE.SpotLight(0xff0000, 1, 1000, Math.PI / 4, 0.05, 2);
+                    // 将光源添加到场景中
+                    if (showLSpotLight) {
+                        intersects[0].object.add(spotLight);
+                    } else {
+                        intersects[0].object.remove(spotLight);
+                    }
+                    showLSpotLight = !showLSpotLight
                 }
                 // objInfoParent.position.set(0, 30, 0)
                 //tag会标注在intersects[0].object.ancestors模型的局部坐标系原点位置
