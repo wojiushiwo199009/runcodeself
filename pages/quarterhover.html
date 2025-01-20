@@ -124,13 +124,14 @@
             const loaderbox = new THREE.CubeTextureLoader()
             let path = '../static/image/skybox/daytime/'
             let format = '.jpg'
+            // 图片尺寸必须为2的次方，例如：256，512，1024，,2048
             const cubeTexture = loaderbox.load([
-                path + 'posX' + format,
-                path + 'negX' + format,
-                path + 'posY' + format,
-                path + 'negY' + format,
-                path + 'posZ' + format,
-                path + 'negZ' + format
+                path + 'posX' + format,// right
+                path + 'negX' + format,//left
+                path + 'posY' + format,//top
+                path + 'negY' + format,//bottom
+                path + 'posZ' + format,//back
+                path + 'negZ' + format//front
             ])
             // 需要把色彩空间编码改一下，原因我上一篇说过的
             cubeTexture.encoding = THREE.sRGBEncoding
