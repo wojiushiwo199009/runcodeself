@@ -276,6 +276,8 @@
             // car.scene.position.set(0, 0, 0);
             // car.scene.rotation.y = Math.PI / 2
             car.scene.scale.set(2, 2, 2);
+            // 车辆加载进来以后是倒着的，就添加如下设置，加载进来是正向的 就不用设置 第一个参数是原来的朝向，第二个参数是希望的朝向
+            // car.scene.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1))
             car.scene.traverse((obj) => {
                 if (obj.name == "passengerDoor_bodyMAT_0" || obj.name == "driverDoor_bodyMAT_0" || obj.name == "body_bodyMAT_0") {
                     carsBody.push(obj)
@@ -471,6 +473,12 @@
                         car.scene.position.set(point.x, point.y, point.z);
                         car.scene.lookAt(pointBox.x, pointBox.y, pointBox.z);//因为这个模型加载进来默认面部是正对Z轴负方向的，所以直接lookAt会导致出现倒着跑的现象，这里用重新设置朝向的方法来解决。
                         console.log(point, pointBox, 'point');
+                        // 加载glb类型的模型需要这四句，不然车一直是倒着开的，很重要！
+                        const direction = new THREE.Vector3().subVectors(pointBox, point).normalize();
+                        const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction); // 这里面的三维向量是需要被归一化
+                        car.scene.quaternion.copy(targetQuaternion); // 将汽车的四元数设置为旋转所需要的四元数
+                        car.scene.quaternion.slerp(targetQuaternion, 0.2);  // 用于处理四元数在旋转过程中的球面上插值，差值因子设置为0.2
+
                         // 视觉跟随车子运动
                         // if (progress <= 0.3) {
 
@@ -488,7 +496,7 @@
                             controls.target.set(pointBox.x, pointBox.y + 14, pointBox.z) //非必要，场景有控件时才加上
 
                         }
-                        if (progress > 0.3 && progress <= 0.72) {
+                        if (progress > 0.32 && progress <= 0.72) {
                             console.log('直行', progress);
                             camera.position.set(point.x - 10, point.y + 14, point.z)
                             camera.lookAt(pointBox.x - 10, pointBox.y + 14, pointBox.z)
