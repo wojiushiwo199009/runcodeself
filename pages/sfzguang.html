@@ -72,6 +72,7 @@
         import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
         import { CopyShader } from 'three/addons/shaders/CopyShader.js'; // 传入了CopyShader着色器，用于拷贝渲染结果
         import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
+        import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 
         let container, camera, scene, gui, renderer, model, loader, controls;
         let gas, tree1, tree2, woman, car, move = false, showLSpotLight = true, showRSpotLight = true, move2 = false, move3 = false;
@@ -80,6 +81,7 @@
         const velocity = 0.01; // 影响运动速率的一个值，范围0~1，需要和渲染频率结合计算才能得到真正的速率
         const velocity2 = 0.02; // 影响运动速率的一个值，范围0~1，需要和渲染频率结合计算才能得到真正的速率
         let bloomComposer, finalComposer, bloomPass;
+        let spriteInfo, spriteMaterialInfo;  //门把手的提示光
         // 辉光图层
         const bloomLayer = new THREE.Layers()
         bloomLayer.set(1)
@@ -235,6 +237,12 @@
                 percentDiv.innerHTML = '模型加载出错'
             };
             loader = new GLTFLoader(loadingManager);
+            //  方法用于设置Draco解码器的路径。Draco是一种开源的3D图形压缩库，能够显著减少3D模型的文件大小，从而加快加载速度并节省带宽
+            loader.setDRACOLoader(
+                new DRACOLoader().setDecoderPath(
+                    `/static/draco/`
+                )
+            );
             createGUI()
         }
         function initModal() {
@@ -311,6 +319,21 @@
             car = await loadGLTF(loader, "../static/gltf/sfz/car4/scene.gltf");
             car.scene.name = 'car'
             console.log(car, ';car');
+            // 精灵图，车门上显示可打开的按钮提示
+            const texLoader = new THREE.TextureLoader();
+            const textureInfo = texLoader.load('../static/image/light.png');
+            const spriteMaterialInfo = new THREE.SpriteMaterial({ map: textureInfo, opacity: 0.6 })
+            spriteInfo = new THREE.Sprite(spriteMaterialInfo)
+            spriteInfo.name = 'info'
+            // obj是建模软件中创建的一个空对象
+            const objInfo = car.scene.getObjectByName('driverDoor');
+            //tag会标注在空对象obj对应的位置
+            spriteInfo.scale.set(2, 2, 1)
+            spriteInfo.rotation.y = -Math.PI / 6
+            spriteInfo.position.set(5.5, 4, -3)
+            objInfo.add(spriteInfo);
+
+
             // 汽车自带地板和阴影，隐藏地板，阴影自动也就不见了
             car.scene.getObjectByName('groundPlane').visible = false
             car.scene.traverse((child) => {
@@ -467,6 +490,13 @@
             const time = -performance.now() / 1000;
             renderer.render(scene, camera);
             TWEEN.update()
+            if (spriteInfo) {
+                spriteInfo.material.opacity -= 0.2
+                console.log(spriteInfo.material.opacity, 'lll');
+                if (spriteInfo.material.opacity <= 0.2) {
+                    spriteInfo.material.opacity = 0.6
+                }
+            }
             // if (carsWheels.length > 0) {
             //     carsWheels.forEach((obj) => {
             //         // obj.rotation.x = time * Math.PI * 2 / 1000
