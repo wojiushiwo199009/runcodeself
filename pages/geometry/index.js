@@ -21,8 +21,8 @@ document.body.appendChild(renderer.domElement);
 let controls = new OrbitControls(camera, renderer.domElement);
 // controls.target.set(114, 23, 0); //改变中心点
 // 直射光（平行光）
-let directionalLight = new THREE.DirectionalLight(0x0000ff, 2);
-directionalLight.position.set(40, 20, 30);
+let directionalLight = new THREE.DirectionalLight(0x0000ff, 1);
+directionalLight.position.set(1, 2, 0);
 
 // 平行光辅助对象
 const directionalLighthelper = new THREE.DirectionalLightHelper(
@@ -36,7 +36,7 @@ scene.add(directionalLight);
 // directionalLight2.position.set(-300, 600, -300);
 // scene.add(directionalLight2);
 // 环境光
-let ambient = new THREE.AmbientLight(0xffffff, 2);
+let ambient = new THREE.AmbientLight(0xffffff, 10);
 scene.add(ambient);
 // 坐标系
 const axesHelper = new THREE.AxesHelper(30);

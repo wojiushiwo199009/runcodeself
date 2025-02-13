@@ -241,27 +241,41 @@ function roll() {
   );
 
   const geometry = new THREE.SphereGeometry(20, 32, 16);
-  const material = new THREE.MeshStandardMaterial({
+  //标准材质
+  //  const material = new THREE.MeshStandardMaterial({});
+  // 物理材质
+  const material = new THREE.MeshPhysicalMaterial({
     map: colorTexture, // 颜色纹理
-    aoMap: aoTexture, //AO纹理
+    specularMap: colorTexture, //镜面高光纹理,调整物体的反射和高光效果，增强物体的光照效果。
+    normalMap: normalTexture, //法线纹理,给物体表面添加细节和深度感。
+    // flatShading: true, //控制材质的平滑程度 true 时，表示平面着色,false 时，表示光滑着色
+    aoMap: aoTexture, //环境光遮蔽纹理（Ambient Occlusion Texture）」，调整物体表面的阴影和遮蔽效果。
     aoMapIntensity: 1, //控制AO效果的强度
+    // alphaMap: opacityTexture, //透明度纹理，实现透明效果
     transparent: true,
     opacity: 1,
-    displacementMap: heightTexture, // 高度纹理（位移贴图）
+    // displacementMap: heightTexture, // 高度纹理（位移贴图）使物体表面产生凸起或凹陷的效果。
     displacementScale: 1, // 位移强度
     side: THREE.DoubleSide,
+    // emissiveMap: "", //自发光纹理 实现物体表面的自发光效果，使物体更具有光泽感。
+    // envMap:'',//环境纹理（Environment Texture）」，实现反射和折射效果。
     emissive: 0x000000, //自发光
     metalness: 0.8, //控制整体金属度
-    metalnessMap: metalnessTexture, // 金属度纹理
+    // metalnessMap: metalnessTexture, // 金属度纹理
     roughness: 0.8, //控制整体粗糙度
     clearcoat: 1, //清漆层厚度
     clearcoatRoughness: 0.03, //清漆层粗糙度
+    shininess: 100, //控制物体表面材质的反光效果，该值越高，表面越亮；
+    clearcoat: 1,
+    transmission: 0.8,
+    reflectivity: 0.8,
+    sheen: 0.8,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = "roll";
   // mesh.position.set(20, 0, -30);
   console.log(mesh, "roll");
-  // modal.add(mesh);
+  modal.add(mesh);
 
   const geometry1 = new THREE.BoxGeometry(100, 100, 100);
   const edges = new THREE.EdgesGeometry(geometry1);
