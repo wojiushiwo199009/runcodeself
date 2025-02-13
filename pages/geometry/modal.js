@@ -1,6 +1,37 @@
 import * as THREE from "../../js/three.module.js";
 import output_fragment from "./output_fragment.glsl.js";
+import { FontLoader } from "three/addons/loaders/FontLoader.js";
+import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
+
 let modal = new THREE.Group();
+// 加载字体
+const fontLoader = new FontLoader();
+fontLoader.load("../../js/fonts/helvetiker_regular.typeface.json", (font) => {
+  const textGeometry = new TextGeometry("Hello Three.js", {
+    font: font,
+    size: 5, // 表示文本大小，即字体高度，默认为 100
+    height: 0.2, // 表示文本厚度，默认为 50
+    curveSegments: 12, // 表示圆角段数，默认为 12
+    bevelEnabled: true, // 表示是否启用斜角，默认为 false
+    bevelThickness: 0.01, // 表示斜角的深度，默认为 10
+    bevelSize: 0.01, // 表示斜角的高度，默认为 8
+    bevelOffset: 0, // 表示斜角相对于文本的偏移量，默认为 0
+    bevelSegments: 1, // 表示斜角的段数，默认为 3
+  });
+
+  const textMaterial = new THREE.MeshLambertMaterial({ color: "red" });
+  const text = new THREE.Mesh(textGeometry, textMaterial);
+
+  modal.add(text);
+  setTimeout(() => {
+    textGeometry.translate(
+      -textGeometry.boundingSphere.center.x,
+      -textGeometry.boundingSphere.center.y,
+      -textGeometry.boundingSphere.center.z
+    );
+  }, 500);
+});
+
 let c = [0, 0, 60, 0, 60, 80, 40, 120, -20, 80, 0, 0];
 let geometry = new THREE.BufferGeometry(); //声名一个空几何体对象
 let posArr = [];
