@@ -36,6 +36,7 @@
 </head>
 
 <body>
+    一个立方体，三个camera显示的场景
     <div id="stop" class="bu">停止</div>
     <div id="play" class="bu" style="margin-left: 10px;">播放</div>
     <div id="container" class="container"></div>
@@ -114,7 +115,7 @@
         const arrayCamera = new THREE.ArrayCamera([camera1, camera2, camera3]);
         arrayCamera.position.z = 3;
         // // 添加一些物体到场景中
-        const geometry = new THREE.BoxGeometry();
+        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
         const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(geometry, material);
         scene.add(cube);
